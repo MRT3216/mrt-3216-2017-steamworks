@@ -13,10 +13,14 @@ public class Robot extends IterativeRobot {
 	NetworkTable table; // sending data back & forth for sensors
 	
 	VictorSP leftdrive,rightdrive; // y-cable these outputs to the two speed controllers (2 motors per side)
+	VictorSP balllauncher;
 	
 	AnalogInput range;
+	Encoder launcherencoder;
+	ADIS16448_IMU imu;
 	
-	REVDigitBoard disp; // digit board connected to MXP 
+	
+	//REVDigitBoard disp; // digit board connected to MXP 
 	MovingAverage rangefinder; // smooth spikes in the rangefinder input by averaging the last several samples
 
 	/* Connections:
@@ -52,9 +56,11 @@ public class Robot extends IterativeRobot {
 	public void robotInit() {
 		/// prefs: here we instantiate values and stuff
 		Settings.add("deadzone", 0.07,0,1); // deadzone in joysticks
-		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("motormap", 0.7, 0, 1); // motor slow down factor
+		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delay before driving forward to allow compressor to power up and lift plate, so it won't get stuck
+		Settings.add("launcherrpm", 3000, 0, 6000);
+		Settings.add("launcherdeadzone", 5, 0, 30);
 		
 		/// now we set up the objects
 		xBox = new Joystick(0); // joystick port 0
@@ -66,13 +72,20 @@ public class Robot extends IterativeRobot {
 		
 		leftdrive = new VictorSP(0); // left motors = pwm 0
 		rightdrive = new VictorSP(1); // right motors = pwm 1
+		balllauncher = new VictorSP(2);
 		
 		range = new AnalogInput(0); // analog rangefinder
 		rangefinder = new MovingAverage(3,250); // moving average for rangefinder (samples, start value)
+		launcherencoder = new Encoder(0, 1, false, Encoder.EncodingType.k1X);
 		
+		launcherencoder.setDistancePerPulse(1/20.0);
+		
+		/*
 		disp = new REVDigitBoard(); // REV digit board object
 		disp.clear(); // clear any prevoius data
 		disp.display("-nc-"); // indicate that the robot is loading. this will be overwritten in the sendData periodic function
+		*/
+		imu = new ADIS16448_IMU();
 	}
 	
 	public void autonomousInit() {
@@ -107,8 +120,6 @@ public class Robot extends IterativeRobot {
 	/* the following useful functions:
 	 * 
 	 * drive(double left_joystick, double right_joystick) : moves the motors, handles deadzone and ideally reversing stuff
-	 * manageGears(double analog_pressure_left, double analog_pressure_right, boolean override_switch) : automatic gearshifting with manual override
-	 * manageBall(double direction, boolean limit) : moves the ball in or out (probably just a motor controller)
 	 */
 	
 	//////////////////////////////// various management functions
@@ -117,17 +128,37 @@ public class Robot extends IterativeRobot {
 		if (Math.abs(left) > Settings.get("deadzone")) { // deadzone the motors
 			leftdrive.set(Math.pow(left,3)*Settings.get("motormap")); // cubic motor map
 		} else {
-			leftdrive.set(0);
+			leftdrive.set(0); // else stop it
 		}
 		
 		if (Math.abs(right) > Settings.get("deadzone")) { // deadzone
 			rightdrive.set(Math.pow(right,3)*Settings.get("motormap"));
 		} else {
-			rightdrive.set(0);
+			rightdrive.set(0); // else stop it
 		}
 	}
 	
-	////////////////////////// miscellaneous stuffs
+	double launcherspeed = 1; // this global value we set to the latest value written to the motors
+	
+	void runlauncher(boolean on) { // on is whether or not to run the shooter
+		if (on) {
+			double rate = launcherencoder.getRate() * 60; // convert encoder to RPM
+			double idealrate = Settings.get("launcherrpm"); // ideal rpm specified in settings
+			if (Math.abs(rate - idealrate) < Settings.get("launcherdeadzone")) { // handle deadzone mechanics for the speed
+				balllauncher.set(launcherspeed); // just run the motor with the last value
+			} else if (rate > idealrate) { // if it's too fast:
+				launcherspeed -= map(Math.abs(rate - idealrate),0,5000,0,0.3); // slow it down based on how far the discrepency is
+				balllauncher.set(launcherspeed); // set the new value
+			} else {
+				launcherspeed += map(Math.abs(rate - idealrate),0,5000,0,0.3); // speed it up
+				balllauncher.set(launcherspeed); // set the new value
+			}
+		} else {
+			balllauncher.set(0); // else, stop the motor
+		}
+	}
+	
+	////////////////////////// miscellaneous stuff
 	
 	public void testPeriodic() {
 		sendData(); // send data in test
@@ -149,10 +180,10 @@ public class Robot extends IterativeRobot {
 		
 		Settings.sync(); // this syncs local settings with the NetworkTable and the DS config utility
 		
-		//syncSensors(); // disabled for competition
+		syncSensors(); // disable for competition
 		
 		//digit board
-		disp.display(ControllerPower.getInputVoltage()); //live voltage readout ideally, or whatever we need
+		//disp.display(ControllerPower.getInputVoltage()); //live voltage readout ideally, or whatever we need
 	}
 	
 	void syncSensors() {
