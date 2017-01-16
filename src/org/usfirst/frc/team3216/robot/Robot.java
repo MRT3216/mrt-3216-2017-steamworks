@@ -3,6 +3,7 @@ package org.usfirst.frc.team3216.robot;
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.networktables.NetworkTable;
 
+// Juice was here
 public class Robot extends IterativeRobot {
 	// setting up all the objects
 	// global objects:
