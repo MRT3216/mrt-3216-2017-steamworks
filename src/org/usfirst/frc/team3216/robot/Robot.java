@@ -54,42 +54,53 @@ public class Robot extends IterativeRobot {
 	 */
 	
 	public void robotInit() {
-		/// prefs: here we instantiate values and stuff
+		/// persistent settings are set up here
 		Settings.add("deadzone", 0.07,0,1); // deadzone in joysticks
 		Settings.add("motormap", 0.7, 0, 1); // motor slow down factor
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delay before driving forward to allow compressor to power up and lift plate, so it won't get stuck
-		Settings.add("launcherrpm", 3000, 0, 6000);
-		Settings.add("launcherdeadzone", 5, 0, 30);
+		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
+		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
 		
-		/// now we set up the objects
+		// input devices
 		xBox = new Joystick(0); // joystick port 0
 		bpanel = new Joystick(1); // secondary button panel
-		
+		// communication
 		table = NetworkTable.getTable("datatable"); // this table communicates back to the computer for diagnostic purposes
-		pdp = new PowerDistributionPanel(); // pdp objecto to read amperages, etc.
+		pdp = new PowerDistributionPanel(); // pdp object to read amperages, etc.
 		ds = DriverStation.getInstance(); // to get match info for LEDs
-		
+		// speed controllers
 		leftdrive = new VictorSP(0); // left motors = pwm 0
 		rightdrive = new VictorSP(1); // right motors = pwm 1
-		balllauncher = new VictorSP(2);
-		
+		balllauncher = new VictorSP(2); // flywheel to launch fuel = pwm 2
+		// sensors
 		range = new AnalogInput(0); // analog rangefinder
-		rangefinder = new MovingAverage(3,250); // moving average for rangefinder (samples, start value)
-		launcherencoder = new Encoder(0, 1, false, Encoder.EncodingType.k1X);
+		rangefinder = new MovingAverage(3,0); // moving average for rangefinder (samples, start value)
+		launcherencoder = new Encoder(0, 1, false, Encoder.EncodingType.k1X); // encoder on the CIM that runs the fuel shooter
+		imu = new ADIS16448_IMU();
 		
-		launcherencoder.setDistancePerPulse(1/20.0);
+		// post-init
+		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
 		
-		/*
+		
+		
+		/* no digit board this year because of the IMU
 		disp = new REVDigitBoard(); // REV digit board object
 		disp.clear(); // clear any prevoius data
 		disp.display("-nc-"); // indicate that the robot is loading. this will be overwritten in the sendData periodic function
 		*/
-		imu = new ADIS16448_IMU();
+		
 	}
 	
+	public enum Autonmode {
+		RED_LEFT, RED_CENTER, RED_RIGHT_SHOOT,
+		BLUE_LEFT_SHOOT, BLUE_CENTER, BLUE_RIGHT
+	}
+	
+	Autonmode automode;
+	
 	public void autonomousInit() {
-		
+		// detect the switches and set the mode
 	}
 
 	// This function is called periodically during autonomous
