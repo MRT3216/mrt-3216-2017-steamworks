@@ -68,7 +68,7 @@ public class Robot extends IterativeRobot {
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
 		Settings.add("autondist1", 60, 0, 250); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
 		Settings.add("autonangle", 60, 0, 100); // angle to turn in auto when targeting the lifts
-		Settings.add("liftdist", 60, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder)
+		Settings.add("liftdist", 20, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder)
 		
 		// input devices
 		xBox = new Joystick(0); // joystick port 0
@@ -99,6 +99,16 @@ public class Robot extends IterativeRobot {
 		station.addDefault("Center Station", Station.CENTER);
 		station.addObject("Left station", Station.LEFT);
 		station.addObject("Right station", Station.RIGHT);
+		
+		// lay out the auton state machines
+		StateMachine.add("initial_delay", 0.5); // start out by pausing for a moment
+		StateMachine.add("drive_back_1"); // back up (gear on back) specified distance
+		StateMachine.add("turn"); // rotate to face the peg if needed
+		StateMachine.add("drive_back_2"); // drive again up to the peg (with vision)
+		StateMachine.add("wait_gear"); // wait until the gear is lifted
+		StateMachine.add("drive_fwd_3"); // drive up to the point where we can shoot
+		StateMachine.add("aim_high"); // aim for the high goal with vision
+		StateMachine.add("shoot"); // shoot as many balls as possible
 	}
 	
 	enum Alliance { RED, BLUE } // assymetric field means we need different auto for the red and blue sides
@@ -122,6 +132,8 @@ public class Robot extends IterativeRobot {
 		
 		auto_station = station.getSelected(); // need to select where robot is before auto!
 		
+		StateMachine.start("initial_delay");
+		
 		// reset and recalibrate the IMU at the start of every match
 		imu.calibrate();
 		imu.reset();
@@ -131,7 +143,60 @@ public class Robot extends IterativeRobot {
 	public void autonomousPeriodic() {
 		sendData(); // this also does the moving average stuff
 		
+		// first, we check the different triggers to advance the auton routine
+		if (StateMachine.check("initial_delay")) { // once finished sleeping
+			StateMachine.cancel("initial_delay");
+			if (auto_station != Station.CENTER) {
+				StateMachine.start("drive_back_1"); // left and right stations need to drive and turn
+			} else {
+				StateMachine.start("drive_back_2"); // middle station just goes forward
+			}
+		}
+		if (StateMachine.isRunning("drive_back_1") &&
+				front_avg.getAverage() > Settings.get("autondist1")) { // use the front rangefinder when driving backwards to see the back wall
+			StateMachine.cancel("drive_back_1");
+			StateMachine.start("turn"); // then turn 
+
+		}
+		if (StateMachine.isRunning("turn") && (
+				(auto_station == Station.LEFT && imu.getAngle() > Settings.get("autonangle")) || // if it turns the wrong way, flip LEFT and RIGHT
+				(auto_station == Station.RIGHT && imu.getAngle() < -Settings.get("autonangle")))) {
+			StateMachine.cancel("turn");
+			StateMachine.start("drive_back_2");
+		}
+		if (StateMachine.isRunning("drive_back_2") &&
+				rear_avg.getAverage() < Settings.get("liftdist")) { // use the rear rangefinder when driving backwards to see the lift
+			StateMachine.cancel("drive_back_2");
+			StateMachine.start("wait_gear"); // wait for the user to lift the gear 
+		}
+		if (StateMachine.isRunning("wait_gear") &&
+				true /* insert a digitalRead here */) { // wait until the gear is lifted out of the cradle
+			StateMachine.cancel("wait_gear");
+			if ((auto_alliance == Alliance.BLUE && auto_station == Station.LEFT) ||  // these are the two positions from where we could shoot
+					(auto_alliance == Alliance.RED && auto_station == Station.RIGHT)) {
+				StateMachine.start("drive_fwd_3"); // drive back toward the high goal
+			} else { // if we're not in those positions, then just get ready for teleop
+				// ???
+			}
+		}
+		// TODO: finish the state machines for targeting and shooting high goal
 		
+		// TODO: add the code in here to run motors, etc for auto stages
+		if (StateMachine.isRunning("drive_back_1")) { // drive backward
+			
+		} else if (StateMachine.isRunning("turn")) { // turn slowly
+			
+		} else if (StateMachine.isRunning("drive_back_2")) { // drive back, targeting the lift with vision
+			
+		} else if (StateMachine.isRunning("wait_gear")) { // wait for the gear to be lifted
+			
+		} else if (StateMachine.isRunning("drive_fwd_3")) { // drive forward
+			
+		} else if (StateMachine.isRunning("aim_high")) { // aim based on the vision
+			
+		} else if (StateMachine.isRunning("shoot")) { // shoot balls into the high goal
+			
+		}
 	}
 	
 	public void teleopInit() {
