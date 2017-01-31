@@ -2,6 +2,7 @@ package org.usfirst.frc.team3216.robot;
 // all them imports:
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.networktables.NetworkTable;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 
 public class Robot extends IterativeRobot {
 	// setting up all the objects
@@ -22,7 +23,9 @@ public class Robot extends IterativeRobot {
 	
 	//REVDigitBoard disp; // digit board connected to MXP 
 	MovingAverage rangefinder; // smooth spikes in the rangefinder input by averaging the last several samples
-
+	
+	SendableChooser<Station> station; //choosing station
+	
 	/* Connections:
 	 * 
 	 * left motors: victor on pwm 0
@@ -90,17 +93,35 @@ public class Robot extends IterativeRobot {
 		disp.display("-nc-"); // indicate that the robot is loading. this will be overwritten in the sendData periodic function
 		*/
 		
+		
+		// auton chooser
+		SendableChooser<Station> station = new SendableChooser<Station>();
+
+		station.addDefault("Center Station", Station.CENTER);
+		station.addObject("Left station", Station.LEFT);
+		station.addObject("Right station", Station.RIGHT);
 	}
 	
-	public enum Autonmode {
-		RED_LEFT, RED_CENTER, RED_RIGHT_SHOOT,
-		BLUE_LEFT_SHOOT, BLUE_CENTER, BLUE_RIGHT
-	}
+	enum Alliance { RED, BLUE }
+	enum Station { LEFT, RIGHT, CENTER }
 	
-	Autonmode automode;
+	Alliance auto_alliance = Alliance.RED;
+	Station auto_station = Station.CENTER;
 	
 	public void autonomousInit() {
 		// detect the switches and set the mode
+		StateMachine.reset();
+		
+		switch (ds.getAlliance()) {
+		case Blue:
+			auto_alliance = Alliance.BLUE;
+			break;
+		case Red:
+			auto_alliance = Alliance.RED;
+			break;
+		}
+		
+		auto_station = station.getSelected();
 	}
 
 	// This function is called periodically during autonomous
