@@ -16,13 +16,13 @@ public class Robot extends IterativeRobot {
 	VictorSP leftdrive,rightdrive; // y-cable these outputs to the two speed controllers (2 motors per side)
 	VictorSP balllauncher;
 	
-	AnalogInput range;
+	AnalogInput range_front, range_rear;
 	Encoder launcherencoder;
 	ADIS16448_IMU imu;
 	
 	
 	//REVDigitBoard disp; // digit board connected to MXP 
-	MovingAverage rangefinder; // smooth spikes in the rangefinder input by averaging the last several samples
+	MovingAverage front_avg, rear_avg; // smooth spikes in the rangefinder input by averaging the last several samples
 	
 	SendableChooser<Station> station; //choosing station
 	
@@ -60,10 +60,15 @@ public class Robot extends IterativeRobot {
 		/// persistent settings are set up here
 		Settings.add("deadzone", 0.07,0,1); // deadzone in joysticks
 		Settings.add("motormap", 0.7, 0, 1); // motor slow down factor
-		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
-		Settings.add("autondelay", 4, 0, 15); // delay before driving forward to allow compressor to power up and lift plate, so it won't get stuck
 		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
+		Settings.add("launcher_p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
+		// auto settings
+		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
+		Settings.add("autondelay", 4, 0, 15); // delays during auton
+		Settings.add("autondist1", 60, 0, 250); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
+		Settings.add("autonangle", 60, 0, 100); // angle to turn in auto when targeting the lifts
+		Settings.add("liftdist", 60, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder)
 		
 		// input devices
 		xBox = new Joystick(0); // joystick port 0
@@ -77,56 +82,55 @@ public class Robot extends IterativeRobot {
 		rightdrive = new VictorSP(1); // right motors = pwm 1
 		balllauncher = new VictorSP(2); // flywheel to launch fuel = pwm 2
 		// sensors
-		range = new AnalogInput(0); // analog rangefinder
-		rangefinder = new MovingAverage(3,0); // moving average for rangefinder (samples, start value)
+		range_front = new AnalogInput(0); // analog rangefinder on the front
+		range_rear = new AnalogInput(1); // analog rangefinder on the front
+		front_avg = new MovingAverage(5,250); // moving average for rangefinder (samples, start value)
+		rear_avg = new MovingAverage(5,0); // moving average for rangefinder (samples, start value)
+		
 		launcherencoder = new Encoder(0, 1, false, Encoder.EncodingType.k1X); // encoder on the CIM that runs the fuel shooter
-		imu = new ADIS16448_IMU();
+		imu = new ADIS16448_IMU(); // the fancy IMU that plugs into the MXP
 		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
 		
 		
-		
-		/* no digit board this year because of the IMU
-		disp = new REVDigitBoard(); // REV digit board object
-		disp.clear(); // clear any prevoius data
-		disp.display("-nc-"); // indicate that the robot is loading. this will be overwritten in the sendData periodic function
-		*/
-		
-		
 		// auton chooser
 		SendableChooser<Station> station = new SendableChooser<Station>();
-
 		station.addDefault("Center Station", Station.CENTER);
 		station.addObject("Left station", Station.LEFT);
 		station.addObject("Right station", Station.RIGHT);
 	}
 	
-	enum Alliance { RED, BLUE }
-	enum Station { LEFT, RIGHT, CENTER }
+	enum Alliance { RED, BLUE } // assymetric field means we need different auto for the red and blue sides
+	enum Station { LEFT, RIGHT, CENTER } // also differet auto based on what station we're in front of
 	
 	Alliance auto_alliance = Alliance.RED;
 	Station auto_station = Station.CENTER;
 	
 	public void autonomousInit() {
-		// detect the switches and set the mode
-		StateMachine.reset();
+		StateMachine.reset(); // reset all the timers so we can run auto again without rebooting
 		
-		switch (ds.getAlliance()) {
+		switch (ds.getAlliance()) { //  we don't need a SendableChooser for the alliance since we can get that info from the FMS
 		case Blue:
 			auto_alliance = Alliance.BLUE;
 			break;
 		case Red:
 			auto_alliance = Alliance.RED;
 			break;
+		case Invalid: //  needed this to not throw an error
 		}
 		
-		auto_station = station.getSelected();
+		auto_station = station.getSelected(); // need to select where robot is before auto!
+		
+		// reset and recalibrate the IMU at the start of every match
+		imu.calibrate();
+		imu.reset();
 	}
 
 	// This function is called periodically during autonomous
 	public void autonomousPeriodic() {
 		sendData(); // this also does the moving average stuff
+		
 		
 	}
 	
@@ -179,10 +183,10 @@ public class Robot extends IterativeRobot {
 			if (Math.abs(rate - idealrate) < Settings.get("launcherdeadzone")) { // handle deadzone mechanics for the speed
 				balllauncher.set(launcherspeed); // just run the motor with the last value
 			} else if (rate > idealrate) { // if it's too fast:
-				launcherspeed -= map(Math.abs(rate - idealrate),0,5000,0,0.3); // slow it down based on how far the discrepency is
+				launcherspeed -= map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher_p")); // slow it down based on how far the discrepency is
 				balllauncher.set(launcherspeed); // set the new value
 			} else {
-				launcherspeed += map(Math.abs(rate - idealrate),0,5000,0,0.3); // speed it up
+				launcherspeed += map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher_p")); // speed it up
 				balllauncher.set(launcherspeed); // set the new value
 			}
 		} else {
@@ -206,16 +210,13 @@ public class Robot extends IterativeRobot {
 	
 	// this kinda became the all-encompassing function to handle periodic tasks.
 	void sendData() {
-		//moving average for rangefinder
-		double a_range = range.getValue(); // centimeters hopefully
-		rangefinder.newSample(a_range);
+		//moving average for rangefinders
+		front_avg.newSample(range_front.getValue()); //  i think these inputs are in centimeters
+		rear_avg.newSample(range_rear.getValue());
 		
 		Settings.sync(); // this syncs local settings with the NetworkTable and the DS config utility
 		
-		syncSensors(); // disable for competition
-		
-		//digit board
-		//disp.display(ControllerPower.getInputVoltage()); //live voltage readout ideally, or whatever we need
+		syncSensors(); // disable this line for competition because it's only for testing
 	}
 	
 	void syncSensors() {
@@ -225,7 +226,7 @@ public class Robot extends IterativeRobot {
 			table.putNumber("pwr_c",pdp.getTotalCurrent()); // total current draw
 			for (int i = 0; i < 16; i++) table.putNumber("pwr_c_" + i,pdp.getCurrent(i)); // current draw for all 16 channels
 			//table.putNumber("pcm_c",pcm.getCompressorCurrent()); // compressor current draw
-			table.putNumber("range",rangefinder.getAverage()); // averaged rangefinder value
+			table.putNumber("range",front_avg.getAverage()); // averaged rangefinder value
 			table.putNumber("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
 			table.putNumber("ctl_c",ControllerPower.getInputCurrent()); // roborio current draw
 			table.putNumber("ctl_fault",ControllerPower.getFaultCount3V3()+ControllerPower.getFaultCount5V()+ControllerPower.getFaultCount6V()); // total voltage fault count
