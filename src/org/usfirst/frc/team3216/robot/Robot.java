@@ -14,46 +14,34 @@ public class Robot extends IterativeRobot {
 	NetworkTable table; // sending data back & forth for sensors
 	
 	VictorSP leftdrive,rightdrive; // y-cable these outputs to the two speed controllers (2 motors per side)
-	VictorSP balllauncher;
+	VictorSP balllauncher; // motor for launching the balls
 	
-	AnalogInput range_front, range_rear;
-	Encoder launcherencoder;
-	ADIS16448_IMU imu;
+	AnalogInput range_front, range_rear; // two different rangefinders
+	Encoder launcherencoder; // detects rate at which launcher spins
+	ADIS16448_IMU imu; // fancy IMU on MXP port
 	
+	MovingAverage front_avg, rear_avg; // smooth spikes in the rangefinders input by averaging the last several samples
 	
-	//REVDigitBoard disp; // digit board connected to MXP 
-	MovingAverage front_avg, rear_avg; // smooth spikes in the rangefinder input by averaging the last several samples
-	
-	SendableChooser<Station> station; //choosing station
+	SendableChooser<Station> station; // chooser for where we're stationed
 	
 	/* Connections:
 	 * 
 	 * left motors: victor on pwm 0
 	 * right motors: victor on pwm 1
-	 
-	 * rangefinder: analog input 0
-	 
+	 * 
 	 * 
 	 */
 	
 	/* Controls:
 	 * 
 	 * vertical joystick axes: tank drive left and right
-	 * right trigger: 
-	 * left trigger: 
-	 * left bumper: 
+	 * 
+	 * 
 	 */
 	
-	/*
-	 * Secondary button panel:
-	 * sw
-	 *     1   3   6
-	 *     2   4   5
-	 *     
-	 * a.k.a.
-	 * sw
-	 *   
-	 *   
+	/* Secondary button panel:
+	 * 
+	 * 
 	 */
 	
 	public void robotInit() {
@@ -68,7 +56,8 @@ public class Robot extends IterativeRobot {
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
 		Settings.add("autondist1", 60, 0, 250); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
 		Settings.add("autonangle", 60, 0, 100); // angle to turn in auto when targeting the lifts
-		Settings.add("liftdist", 20, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder)
+		Settings.add("liftdist", 20, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder) (also used when auto-targeting in teleop)
+		Settings.add("autonturnspeed", 0.4, 0, 1); // rate to turn in auto (very slow is good, but not too slow)
 		
 		// input devices
 		xBox = new Joystick(0); // joystick port 0
@@ -94,13 +83,13 @@ public class Robot extends IterativeRobot {
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
 		
 		
-		// auton chooser
-		SendableChooser<Station> station = new SendableChooser<Station>();
-		station.addDefault("Center Station", Station.CENTER);
-		station.addObject("Left station", Station.LEFT);
-		station.addObject("Right station", Station.RIGHT);
+		// set up auton chooser
+		SendableChooser<Station> station = new SendableChooser<Station>(); // pretty simple to choose mode
+		station.addDefault("Center Station", Station.CENTER); // default is center, where we drive froward
+		station.addObject("Left station", Station.LEFT); // we prefer to be on the side of the high goal so we can shoot
+		station.addObject("Right station", Station.RIGHT); // however we want all options to be open
 		
-		// lay out the auton state machines
+		// lay out the auton state machines (stages)
 		StateMachine.add("initial_delay", 0.5); // start out by pausing for a moment
 		StateMachine.add("drive_back_1"); // back up (gear on back) specified distance
 		StateMachine.add("turn"); // rotate to face the peg if needed
@@ -114,29 +103,29 @@ public class Robot extends IterativeRobot {
 	enum Alliance { RED, BLUE } // assymetric field means we need different auto for the red and blue sides
 	enum Station { LEFT, RIGHT, CENTER } // also differet auto based on what station we're in front of
 	
-	Alliance auto_alliance = Alliance.RED;
-	Station auto_station = Station.CENTER;
+	Alliance auto_alliance = Alliance.RED; // defaults to red alliance here if the communication errors or something
+	Station auto_station = Station.CENTER; // defaults to center (simplest) if chooser errors somehow
 	
 	public void autonomousInit() {
-		StateMachine.reset(); // reset all the timers so we can run auto again without rebooting
+		StateMachine.reset(); // reset all the timers so we can run auto again without rebooting (issue last year!!)
 		
 		switch (ds.getAlliance()) { //  we don't need a SendableChooser for the alliance since we can get that info from the FMS
 		case Blue:
-			auto_alliance = Alliance.BLUE;
+			auto_alliance = Alliance.BLUE; // blue
 			break;
 		case Red:
-			auto_alliance = Alliance.RED;
+			auto_alliance = Alliance.RED; // red
 			break;
 		case Invalid: //  needed this to not throw an error
 		}
 		
 		auto_station = station.getSelected(); // need to select where robot is before auto!
 		
-		StateMachine.start("initial_delay");
+		StateMachine.start("initial_delay"); // start the timed delay while things calibrate
 		
 		// reset and recalibrate the IMU at the start of every match
-		imu.calibrate();
-		imu.reset();
+		imu.calibrate(); // this has delays in it so i hope it doesn't take too long
+		imu.reset(); // reset even though calibrate() probably already does that
 	}
 
 	// This function is called periodically during autonomous
@@ -146,21 +135,21 @@ public class Robot extends IterativeRobot {
 		// first, we check the different triggers to advance the auton routine
 		if (StateMachine.check("initial_delay")) { // once finished sleeping
 			StateMachine.cancel("initial_delay");
-			if (auto_station != Station.CENTER) {
+			if (auto_station != Station.CENTER) { // not center station
 				StateMachine.start("drive_back_1"); // left and right stations need to drive and turn
-			} else {
+			} else { // else, if at center station
 				StateMachine.start("drive_back_2"); // middle station just goes forward
 			}
 		}
-		if (StateMachine.isRunning("drive_back_1") &&
+		if (StateMachine.isRunning("drive_back_1") && // first drive stage
 				front_avg.getAverage() > Settings.get("autondist1")) { // use the front rangefinder when driving backwards to see the back wall
-			StateMachine.cancel("drive_back_1");
+			StateMachine.cancel("drive_back_1"); // StateMachine makes my life so much easier compared to last year
 			StateMachine.start("turn"); // then turn 
 
 		}
 		if (StateMachine.isRunning("turn") && (
 				(auto_station == Station.LEFT && imu.getAngle() > Settings.get("autonangle")) || // if it turns the wrong way, flip LEFT and RIGHT
-				(auto_station == Station.RIGHT && imu.getAngle() < -Settings.get("autonangle")))) {
+				(auto_station == Station.RIGHT && imu.getAngle() < -Settings.get("autonangle")))) { // so many booleans
 			StateMachine.cancel("turn");
 			StateMachine.start("drive_back_2");
 		}
@@ -184,8 +173,12 @@ public class Robot extends IterativeRobot {
 		// TODO: add the code in here to run motors, etc for auto stages
 		if (StateMachine.isRunning("drive_back_1")) { // drive backward
 			
-		} else if (StateMachine.isRunning("turn")) { // turn slowly
-			
+		} else if (StateMachine.isRunning("turn")) { // turn toward the lift
+			if (auto_station == Station.LEFT) { // turn to the right
+				
+			} else if (auto_station == Station.RIGHT) { // turn to the left
+				
+			}
 		} else if (StateMachine.isRunning("drive_back_2")) { // drive back, targeting the lift with vision
 			
 		} else if (StateMachine.isRunning("wait_gear")) { // wait for the gear to be lifted
@@ -281,7 +274,7 @@ public class Robot extends IterativeRobot {
 		
 		Settings.sync(); // this syncs local settings with the NetworkTable and the DS config utility
 		
-		syncSensors(); // disable this line for competition because it's only for testing
+		syncSensors(); // TODO: disable this line for competition because it's only for testing
 	}
 	
 	void syncSensors() {

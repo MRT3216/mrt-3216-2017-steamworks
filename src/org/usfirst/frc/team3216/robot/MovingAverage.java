@@ -21,7 +21,7 @@ public class MovingAverage {
 		this.readings = new double[numreadings];
 		this.index = 0;
 		this.r_average = init;
-		for (int i = 0; i < this.numreadings; i++) this.readings[i] = init;
+		for (int i = 0; i < this.numreadings; i++) this.readings[i] = init; // set to initial value 
 		this.total = numreadings * init;
 	}
 	

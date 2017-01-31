@@ -48,16 +48,16 @@ public class Settings {
 		this.defv = def;
 		this.min = min;
 		this.max = max;
-		if (!pref.containsKey(name + "_val")) {
+		if (!pref.containsKey(name + "_val")) { // don't overwrite a value already in the table
 			pref.putDouble(name + "_val",defv);
 		}
-		pref.putDouble(name + "_min",min);
+		pref.putDouble(name + "_min",min); // overwrite min and max though
 		pref.putDouble(name + "_max",max);
 		this._sync();
 	}
 	
 	void _sync() {
-		double temp = pref.getDouble(this.name + "_val", this.defv);
+		double temp = pref.getDouble(this.name + "_val", this.defv); // sync with Prefs and Processing app
 		if (this.value != temp) this.value = temp;
 	}
 }
