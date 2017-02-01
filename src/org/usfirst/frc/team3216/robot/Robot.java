@@ -51,6 +51,7 @@ public class Robot extends IterativeRobot {
 		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
 		Settings.add("launcher_p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
+		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pizels in which to aim at vision targets
 		// auto settings
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
@@ -85,7 +86,7 @@ public class Robot extends IterativeRobot {
 		
 		// set up auton chooser
 		SendableChooser<Station> station = new SendableChooser<Station>(); // pretty simple to choose mode
-		station.addDefault("Center Station", Station.CENTER); // default is center, where we drive froward
+		station.addDefault("Center Station", Station.CENTER); // default is center, where we just drive froward
 		station.addObject("Left station", Station.LEFT); // we prefer to be on the side of the high goal so we can shoot
 		station.addObject("Right station", Station.RIGHT); // however we want all options to be open
 		
@@ -98,6 +99,11 @@ public class Robot extends IterativeRobot {
 		StateMachine.add("drive_fwd_3"); // drive up to the point where we can shoot
 		StateMachine.add("aim_high"); // aim for the high goal with vision
 		StateMachine.add("shoot"); // shoot as many balls as possible
+		
+		// statemachines to handle the gear placing 
+		StateMachine.add("aim_gear"); // turn so the vision targets are in the middle of the FOV
+		StateMachine.add("drive_gear"); // drive until the robot gets to the lift
+		StateMachine.add("pause_gear"); // wait (don't start another aiming run)
 	}
 	
 	enum Alliance { RED, BLUE } // assymetric field means we need different auto for the red and blue sides
@@ -114,7 +120,7 @@ public class Robot extends IterativeRobot {
 			auto_alliance = Alliance.BLUE; // blue
 			break;
 		case Red:
-			auto_alliance = Alliance.RED; // red
+			auto_alliance = Alliance.RED; // red 
 			break;
 		case Invalid: //  needed this to not throw an error
 		}
@@ -135,7 +141,7 @@ public class Robot extends IterativeRobot {
 		// first, we check the different triggers to advance the auton routine
 		if (StateMachine.check("initial_delay")) { // once finished sleeping
 			StateMachine.cancel("initial_delay");
-			if (auto_station != Station.CENTER) { // not center station
+			if (auto_station != Station.CENTER) { // if not center station
 				StateMachine.start("drive_back_1"); // left and right stations need to drive and turn
 			} else { // else, if at center station
 				StateMachine.start("drive_back_2"); // middle station just goes forward
@@ -159,10 +165,10 @@ public class Robot extends IterativeRobot {
 			StateMachine.start("wait_gear"); // wait for the user to lift the gear 
 		}
 		if (StateMachine.isRunning("wait_gear") &&
-				true /* insert a digitalRead here */) { // wait until the gear is lifted out of the cradle
+				true /* insert a sensor read here */) { // wait until the gear is lifted out of the cradle
 			StateMachine.cancel("wait_gear");
 			if ((auto_alliance == Alliance.BLUE && auto_station == Station.LEFT) ||  // these are the two positions from where we could shoot
-					(auto_alliance == Alliance.RED && auto_station == Station.RIGHT)) {
+					(auto_alliance == Alliance.RED && auto_station == Station.RIGHT)) { // i hope we can get these every time
 				StateMachine.start("drive_fwd_3"); // drive back toward the high goal
 			} else { // if we're not in those positions, then just get ready for teleop
 				// ???
@@ -182,7 +188,7 @@ public class Robot extends IterativeRobot {
 		} else if (StateMachine.isRunning("drive_back_2")) { // drive back, targeting the lift with vision
 			
 		} else if (StateMachine.isRunning("wait_gear")) { // wait for the gear to be lifted
-			
+			// probably don't need to do anything here
 		} else if (StateMachine.isRunning("drive_fwd_3")) { // drive forward
 			
 		} else if (StateMachine.isRunning("aim_high")) { // aim based on the vision
@@ -194,6 +200,7 @@ public class Robot extends IterativeRobot {
 	
 	public void teleopInit() {
 		// initialize things
+		launcherspeed = 1; // set this high to make it speed up faster, might work
 	}
 
 	// variables used in teleop:
@@ -206,7 +213,7 @@ public class Robot extends IterativeRobot {
 		leftdrive_in = xBox.getRawAxis(1); // these are supposed to be the vertical axes (for tank drive)
 		rightdrive_in = xBox.getRawAxis(5); // checked
 		
-		drive(leftdrive_in, -rightdrive_in); // drive function
+		drive(leftdrive_in, rightdrive_in); // drive function
 		
 		sendData(); // periodic function
 	}
@@ -218,7 +225,9 @@ public class Robot extends IterativeRobot {
 	
 	//////////////////////////////// various management functions
 	
-	void drive(double left, double right) {
+	void drive(double left, double right) { // move!
+		right = -right;
+		
 		if (Math.abs(left) > Settings.get("deadzone")) { // deadzone the motors
 			leftdrive.set(Math.pow(left,3)*Settings.get("motormap")); // cubic motor map
 		} else {
@@ -251,6 +260,54 @@ public class Robot extends IterativeRobot {
 			balllauncher.set(0); // else, stop the motor
 		}
 	}
+	
+	void aimLauncher() { // turn the robot to aim at the high goal
+		
+	}
+	
+	void placeGear(boolean on) { // drive backward to place the gear while aiming
+		// need a state machine to handle the aiming and then driving
+		if (on) {
+			if (!StateMachine.isRunning("aim_gear")) {
+				StateMachine.start("aim_gear");
+			}
+		} else {
+			StateMachine.cancel("aim_gear");
+			StateMachine.cancel("drive_gear");
+			StateMachine.cancel("pause_gear");
+			StateMachine.reset("aim_gear");
+			StateMachine.reset("drive_gear");
+			StateMachine.reset("pause_gear");
+		}
+		
+		if (StateMachine.isRunning("aim_gear") && 
+				(true /* check the vision deadzone */)) {
+			StateMachine.cancel("aim_gear");
+			StateMachine.start("drive_gear");
+		} else if (StateMachine.isRunning("drive_gear") && 
+				rear_avg.getAverage() < Settings.get("liftdist")) {
+			StateMachine.cancel("drive_gear");
+			StateMachine.start("pause_gear");
+		}
+		
+		if (StateMachine.isRunning("aim_gear")) {
+			
+		} else if (StateMachine.isRunning("drive_gear")) {
+			
+		} else if (StateMachine.isRunning("pause_gear")) {
+			// probably do nothing
+		}
+		
+	}
+	
+	void aimGear() { // move the gear cradle based on vision input
+		
+	}
+	
+	void intake() { // just run the motors to lift fuel off the ground
+		
+	}
+	
 	
 	////////////////////////// miscellaneous stuff
 	
