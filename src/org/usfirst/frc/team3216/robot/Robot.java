@@ -24,25 +24,6 @@ public class Robot extends IterativeRobot {
 	
 	SendableChooser<Station> station; // chooser for where we're stationed
 	
-	/* Connections:
-	 * 
-	 * left motors: victor on pwm 0
-	 * right motors: victor on pwm 1
-	 * 
-	 * 
-	 */
-	
-	/* Controls:
-	 * 
-	 * vertical joystick axes: tank drive left and right
-	 * 
-	 * 
-	 */
-	
-	/* Secondary button panel:
-	 * 
-	 * 
-	 */
 	
 	public void robotInit() {
 		/// persistent settings are set up here
