@@ -101,6 +101,7 @@ public class Robot extends IterativeRobot {
 		StateMachine.add("shoot"); // shoot as many balls as possible
 		
 		// statemachines to handle the gear placing 
+		StateMachine.add("center_gear"); // center the gear cradle first
 		StateMachine.add("aim_gear"); // turn so the vision targets are in the middle of the FOV
 		StateMachine.add("drive_gear"); // drive until the robot gets to the lift
 		StateMachine.add("pause_gear"); // wait (don't start another aiming run)
@@ -268,19 +269,25 @@ public class Robot extends IterativeRobot {
 	void placeGear(boolean on) { // drive backward to place the gear while aiming
 		// need a state machine to handle the aiming and then driving
 		if (on) {
-			if (!StateMachine.isRunning("aim_gear")) {
-				StateMachine.start("aim_gear");
+			if (!StateMachine.isRunning("center_gear")) {
+				StateMachine.start("center_gear"); // start the first stage if not already running
 			}
-		} else {
-			StateMachine.cancel("aim_gear");
+		} else { // as soon as the button is lifted, reset
+			StateMachine.cancel("center_gear");
+			StateMachine.cancel("aim_gear"); // cancel all
 			StateMachine.cancel("drive_gear");
 			StateMachine.cancel("pause_gear");
-			StateMachine.reset("aim_gear");
+			StateMachine.reset("center_gear");
+			StateMachine.reset("aim_gear"); // reset all
 			StateMachine.reset("drive_gear");
 			StateMachine.reset("pause_gear");
 		}
 		
-		if (StateMachine.isRunning("aim_gear") && 
+		if (StateMachine.isRunning("center_gear") && 
+				(true /* check the center */)) {
+			StateMachine.cancel("center_gear");
+			StateMachine.start("aim_gear");
+		} else if (StateMachine.isRunning("aim_gear") && 
 				(true /* check the vision deadzone */)) {
 			StateMachine.cancel("aim_gear");
 			StateMachine.start("drive_gear");
@@ -290,8 +297,10 @@ public class Robot extends IterativeRobot {
 			StateMachine.start("pause_gear");
 		}
 		
-		if (StateMachine.isRunning("aim_gear")) {
-			
+		if (StateMachine.isRunning("center_gear")) {
+			centerGear();
+		} else if (StateMachine.isRunning("aim_gear")) {
+			aimGear();
 		} else if (StateMachine.isRunning("drive_gear")) {
 			
 		} else if (StateMachine.isRunning("pause_gear")) {
@@ -301,6 +310,10 @@ public class Robot extends IterativeRobot {
 	}
 	
 	void aimGear() { // move the gear cradle based on vision input
+		
+	}
+	
+	void centerGear() { // center the gear cradle so that we can use vision
 		
 	}
 	
