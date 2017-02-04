@@ -1,7 +1,6 @@
 package org.usfirst.frc.team3216.robot;
 // all them imports:
 import edu.wpi.first.wpilibj.*;
-import edu.wpi.first.wpilibj.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 
 public class Robot extends IterativeRobot {
@@ -11,14 +10,14 @@ public class Robot extends IterativeRobot {
 	
 	PowerDistributionPanel pdp; // to get voltage/amperage stuff
 	DriverStation ds; // getting DS state, other info
-	NetworkTable table; // sending data back & forth for sensors
-	
+
 	VictorSP leftdrive,rightdrive; // y-cable these outputs to the two speed controllers (2 motors per side)
 	VictorSP balllauncher; // motor for launching the balls
 	
 	AnalogInput range_front, range_rear; // two different rangefinders
 	Encoder launcherencoder; // detects rate at which launcher spins
 	ADIS16448_IMU imu; // fancy IMU on MXP port
+	AnalogInput cradle_prox;
 	
 	MovingAverage front_avg, rear_avg; // smooth spikes in the rangefinders input by averaging the last several samples
 	
@@ -32,7 +31,8 @@ public class Robot extends IterativeRobot {
 		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
 		Settings.add("launcher_p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
-		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pizels in which to aim at vision targets
+		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pixels in which to aim at vision targets
+		Settings.add("geardetect", 1000, 0, 4096); // analog read form the IR sensor to tell when the gear is present
 		// auto settings
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
@@ -45,7 +45,6 @@ public class Robot extends IterativeRobot {
 		xBox = new Joystick(0); // joystick port 0
 		bpanel = new Joystick(1); // secondary button panel
 		// communication
-		table = NetworkTable.getTable("datatable"); // this table communicates back to the computer for diagnostic purposes
 		pdp = new PowerDistributionPanel(); // pdp object to read amperages, etc.
 		ds = DriverStation.getInstance(); // to get match info for LEDs
 		// speed controllers
@@ -57,12 +56,35 @@ public class Robot extends IterativeRobot {
 		range_rear = new AnalogInput(1); // analog rangefinder on the front
 		front_avg = new MovingAverage(5,250); // moving average for rangefinder (samples, start value)
 		rear_avg = new MovingAverage(5,0); // moving average for rangefinder (samples, start value)
+		cradle_prox = new AnalogInput(2); // IR proximity sensor
 		
 		launcherencoder = new Encoder(0, 1, false, Encoder.EncodingType.k1X); // encoder on the CIM that runs the fuel shooter
 		imu = new ADIS16448_IMU(); // the fancy IMU that plugs into the MXP
 		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
+		
+		// set up the sensors!
+		SensorPanel.add("pwr_v", "PDB Voltage", SensorPanel.Type.BAR, 0, 15, "V");
+		SensorPanel.add("ctl_v", "Controller Voltage", SensorPanel.Type.BAR, 0, 15, "V");
+		SensorPanel.add("pwr_c", "PDB Total Current", SensorPanel.Type.BAR, 0, 500, "A");
+		SensorPanel.add("pwr_t", "PDB Temperature", SensorPanel.Type.NUMBER, 0, 1, "F");
+		for (int i = 0; i < 16; i++) SensorPanel.add("pwr_c_"+i, "PDB Current CH"+i, SensorPanel.Type.BAR, 0, 15, "A");
+		SensorPanel.add("range_f", "Front Rangefinder", SensorPanel.Type.BAR, 0, 260, "cm");
+		SensorPanel.add("range_r", "Rear Rangefinder", SensorPanel.Type.BAR, 0, 260, "cm");
+		SensorPanel.add("gyro_x", "Gyroscope X", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("gyro_y", "Gyroscope Y", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("gyro_z", "Gyroscope Z", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("accel_x", "Accelerometer X", SensorPanel.Type.CENTER, 0, 1, "g");
+		SensorPanel.add("accel_y", "Accelerometer Y", SensorPanel.Type.CENTER, 0, 1, "g");
+		SensorPanel.add("accel_z", "Accelerometer Z", SensorPanel.Type.CENTER, 0, 1, "g");
+		SensorPanel.add("imu_p", "Pitch", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("imu_r", "Roll", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("imu_y", "Yaw", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("cradle_p", "Cradle Proximity", SensorPanel.Type.BAR, 0, 4096, "");
+		SensorPanel.add("enc_r", "Launcher encoder", SensorPanel.Type.NUMBER, 0, 1, "rpm");
+		
+		//SensorPanel.add("", "", SensorPanel.Type.BAR, 0, 1, "");
 		
 		
 		// set up auton chooser
@@ -89,7 +111,7 @@ public class Robot extends IterativeRobot {
 	}
 	
 	enum Alliance { RED, BLUE } // assymetric field means we need different auto for the red and blue sides
-	enum Station { LEFT, RIGHT, CENTER } // also differet auto based on what station we're in front of
+	enum Station { LEFT, RIGHT, CENTER } // also different auto based on what station we're in front of
 	
 	Alliance auto_alliance = Alliance.RED; // defaults to red alliance here if the communication errors or something
 	Station auto_station = Station.CENTER; // defaults to center (simplest) if chooser errors somehow
@@ -250,7 +272,7 @@ public class Robot extends IterativeRobot {
 	void placeGear(boolean on) { // drive backward to place the gear while aiming
 		// need a state machine to handle the aiming and then driving
 		if (on) {
-			if (!StateMachine.isRunning("center_gear")) {
+			if (!StateMachine.isRunning("center_gear") || StateMachine.isRunning("aim_gear") || StateMachine.isRunning("drive_gear") || StateMachine.isRunning("pause_gear")) {
 				StateMachine.start("center_gear"); // start the first stage if not already running
 			}
 		} else { // as soon as the button is lifted, reset
@@ -330,16 +352,24 @@ public class Robot extends IterativeRobot {
 	
 	void syncSensors() {
 		try { // put data into table (probably disable this during comp)
-			table.putNumber("pwr_v",pdp.getVoltage()); // PDP voltage (not the same as DS voltage)
-			table.putNumber("pwr_t",pdp.getTemperature()); // useful to tell if there are things heating up
-			table.putNumber("pwr_c",pdp.getTotalCurrent()); // total current draw
-			for (int i = 0; i < 16; i++) table.putNumber("pwr_c_" + i,pdp.getCurrent(i)); // current draw for all 16 channels
-			//table.putNumber("pcm_c",pcm.getCompressorCurrent()); // compressor current draw
-			table.putNumber("range",front_avg.getAverage()); // averaged rangefinder value
-			table.putNumber("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
-			table.putNumber("ctl_c",ControllerPower.getInputCurrent()); // roborio current draw
-			table.putNumber("ctl_fault",ControllerPower.getFaultCount3V3()+ControllerPower.getFaultCount5V()+ControllerPower.getFaultCount6V()); // total voltage fault count
-			//table.putNumber("inf_range",balllimit.getValue());
+			SensorPanel.report("pwr_v",pdp.getVoltage()); // PDP voltage (not the same as DS voltage)
+			SensorPanel.report("pwr_t",pdp.getTemperature()); // useful to tell if there are things heating up
+			SensorPanel.report("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
+			SensorPanel.report("pwr_c",pdp.getTotalCurrent()); // total current draw
+			for (int i = 0; i < 16; i++) SensorPanel.report("pwr_c_"+i, pdp.getCurrent(i)); // current draw for all 16 channels
+			SensorPanel.report("range_f",front_avg.getAverage()); // averaged rangefinder value
+			SensorPanel.report("range_r",rear_avg.getAverage()); // averaged rangefinder value
+			SensorPanel.report("gyro_x",imu.getAngleX()); // gyroscope on IMU
+			SensorPanel.report("gyro_y",imu.getAngleY()); 
+			SensorPanel.report("gyro_z",imu.getAngleZ()); 
+			SensorPanel.report("accel_x",imu.getAccelX()); // accelerometer on IMU
+			SensorPanel.report("accel_y",imu.getAccelY());
+			SensorPanel.report("accel_z",imu.getAccelZ());
+			SensorPanel.report("imu_p",imu.getPitch()); // calculated angles
+			SensorPanel.report("imu_r",imu.getRoll());
+			SensorPanel.report("imu_y",imu.getYaw());
+			SensorPanel.report("cradle_p",cradle_prox.getValue());
+			SensorPanel.report("enc_r",launcherencoder.getRate() * 60);
 		} catch (RuntimeException a) { } // runtime exception could be caused by CAN timeout
 	}
 }
