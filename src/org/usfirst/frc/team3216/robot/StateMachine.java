@@ -19,6 +19,11 @@ public class StateMachine {
 		states.put(name, temp);
 	}
 	
+	static void add(String name, String group) { // add one associated with a group
+		StateMachine temp = new StateMachine(name,group);
+		states.put(name, temp);
+	}
+	
 	static void start(String name) { // start the timer on a timed one, or just mark a normal one as running
 		StateMachine temp = states.get(name);
 		if (temp != null) { // gotta make sure it's not null or we crash the whole thing
@@ -81,9 +86,27 @@ public class StateMachine {
 		}
 	}
 	
+	static void resetGroup(String group) { // resets a group of statemachnes so that it's easier to manage them
+		for (StateMachine i: states.values()) {
+			if (i.group == group) {
+				i._reset();
+			}
+		}
+	}
+	
+	static boolean isGroupRunning(String group) { // one side effect: if there are no state machines that match the group name, it returns true
+		boolean run = true;
+		for (StateMachine i: states.values()) {
+			if (i.group == group && !i._running()) {
+				run = false;
+			}
+		}
+		return run;
+	}
+	
 	//////////// dynamic
 	
-	String name;
+	String name, group;
 	double time;
 	Timer timer;
 	boolean running;
@@ -97,6 +120,7 @@ public class StateMachine {
 		this.triggered = false;
 		this.manual = true;
 		this.cancelled = false;
+		this.group = "";
 	}
 	
 	private StateMachine(String name, double time) { // automaticaly goes off based on a timer
@@ -107,6 +131,27 @@ public class StateMachine {
 		this.triggered = false;
 		this.manual = false;
 		this.cancelled = false;
+		this.group = "";
+	}
+	
+	private StateMachine(String name, String group) { // assigns a group to the command
+		this.name = name; // set up all vars
+		this.running = false;
+		this.triggered = false;
+		this.manual = true;
+		this.cancelled = false;
+		this.group = group;
+	}
+	
+	private StateMachine(String name, double time, String group) { // automaticaly goes off based on a timer
+		this.name = name; // more vars for this one
+		this.time = time;
+		this.timer = new Timer();
+		this.running = false;
+		this.triggered = false;
+		this.manual = false;
+		this.cancelled = false;
+		this.group = group;
 	}
 	
 	private void _start() {

@@ -104,10 +104,10 @@ public class Robot extends IterativeRobot {
 		StateMachine.add("shoot"); // shoot as many balls as possible
 		
 		// statemachines to handle the gear placing 
-		StateMachine.add("center_gear"); // center the gear cradle first
-		StateMachine.add("aim_gear"); // turn so the vision targets are in the middle of the FOV
-		StateMachine.add("drive_gear"); // drive until the robot gets to the lift
-		StateMachine.add("pause_gear"); // wait (don't start another aiming run)
+		StateMachine.add("center_gear","gear"); // center the gear cradle first
+		StateMachine.add("aim_gear","gear"); // turn so the vision targets are in the middle of the FOV
+		StateMachine.add("drive_gear","gear"); // drive until the robot gets to the lift
+		StateMachine.add("pause_gear","gear"); // wait (don't start another aiming run)
 	}
 	
 	enum Alliance { RED, BLUE } // assymetric field means we need different auto for the red and blue sides
@@ -272,18 +272,11 @@ public class Robot extends IterativeRobot {
 	void placeGear(boolean on) { // drive backward to place the gear while aiming
 		// need a state machine to handle the aiming and then driving
 		if (on) {
-			if (!StateMachine.isRunning("center_gear") || StateMachine.isRunning("aim_gear") || StateMachine.isRunning("drive_gear") || StateMachine.isRunning("pause_gear")) {
+			if (!StateMachine.isGroupRunning("gear")) {
 				StateMachine.start("center_gear"); // start the first stage if not already running
 			}
 		} else { // as soon as the button is lifted, reset
-			StateMachine.cancel("center_gear");
-			StateMachine.cancel("aim_gear"); // cancel all
-			StateMachine.cancel("drive_gear");
-			StateMachine.cancel("pause_gear");
-			StateMachine.reset("center_gear");
-			StateMachine.reset("aim_gear"); // reset all
-			StateMachine.reset("drive_gear");
-			StateMachine.reset("pause_gear");
+			StateMachine.resetGroup("gear");
 		}
 		
 		if (StateMachine.isRunning("center_gear") && 
