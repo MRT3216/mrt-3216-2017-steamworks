@@ -2,6 +2,7 @@ package org.usfirst.frc.team3216.robot;
 // all them imports:
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import org.usfirst.frc.team3216.robot.Utility.*;
 
 public class Robot extends IterativeRobot {
 	// setting up all the objects
@@ -51,9 +52,6 @@ public class Robot extends IterativeRobot {
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
 	}
-	
-	enum Alliance { RED, BLUE } // assymetric field means we need different auto for the red and blue sides
-	enum Station { LEFT, RIGHT, CENTER, HALT } // also different auto based on what station we're in front of
 	
 	Alliance auto_alliance = Alliance.RED; // defaults to red alliance here if the communication errors or something
 	Station auto_station = Station.CENTER; // defaults to center (simplest) if chooser errors somehow
@@ -194,10 +192,10 @@ public class Robot extends IterativeRobot {
 			if (Math.abs(rate - idealrate) < Settings.get("launcherdeadzone")) { // handle deadzone mechanics for the speed
 				balllauncher.set(launcherspeed); // just run the motor with the last value
 			} else if (rate > idealrate) { // if it's too fast:
-				launcherspeed -= map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // slow it down based on how far the discrepency is
+				launcherspeed -= Utility.map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // slow it down based on how far the discrepency is
 				balllauncher.set(launcherspeed); // set the new value
 			} else {
-				launcherspeed += map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // speed it up
+				launcherspeed += Utility.map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // speed it up
 				balllauncher.set(launcherspeed); // set the new value
 			}
 		} else {
@@ -266,10 +264,6 @@ public class Robot extends IterativeRobot {
 	
 	public void disabledPeriodic() {
 		sendData(); // send data in disabled
-	}
-	
-	double map(double value, double istart, double istop, double ostart, double ostop){ // to map stuff from one range to another
-		return ostart + (ostop - ostart) * ((value - istart) / (istop - istart));
 	}
 	
 	// this kinda became the all-encompassing function to handle periodic tasks.
@@ -364,7 +358,7 @@ public class Robot extends IterativeRobot {
 		StateMachine.add("pause_gear","gear"); // wait (don't start another aiming run)
 		
 		// set up auton chooser
-		SendableChooser<Station> station = new SendableChooser<Station>(); // pretty simple to choose mode
+		station = new SendableChooser<Station>(); // pretty simple to choose mode
 		station.addDefault("Center Station", Station.CENTER); // default is center, where we just drive froward
 		station.addObject("Left station", Station.LEFT); // we prefer to be on the side of the high goal so we can shoot
 		station.addObject("Right station", Station.RIGHT); // however we want all options to be open

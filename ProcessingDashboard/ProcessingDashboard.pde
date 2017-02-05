@@ -25,16 +25,6 @@ void setup() {
   initsens();
 }
 
-
-float amap = 16;
-float pmap = 2;
-int[] chans = {1,0,2,15,14,13};  // pdb channels to display
-
-
-float ch_max[] = new float[16];
-float minbat_v = 1000, maxbat_v = -1000;
-//float bat_graph = new float[100];
-
 void draw() {
   background(0);
   
