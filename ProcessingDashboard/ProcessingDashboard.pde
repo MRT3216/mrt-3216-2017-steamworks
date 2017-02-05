@@ -11,7 +11,7 @@ ConnectionListener cl = new ConnectionListener();
 boolean connected = false;
 
 void setup() {
-  size(1000,700);
+  size(1100,700);
   // Initialize NetworkTables
   NetworkTable.setClientMode();
   NetworkTable.setIPAddress("roboRIO-3216-FRC.local");

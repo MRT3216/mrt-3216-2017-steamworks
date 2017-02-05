@@ -11,7 +11,7 @@ class Setting {
     this.value = getSetting(name + "_val");
     this.min = getSetting(name + "_min");
     this.max = getSetting(name + "_max");
-    this.bar = new ScrollBar(x,y,300,20,(float)min,(float)max,(float)value,this.name);
+    this.bar = new ScrollBar(x,y,400,20,(float)min,(float)max,(float)value,this.name);
   }
   
   void disp() {

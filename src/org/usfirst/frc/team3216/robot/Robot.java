@@ -15,7 +15,7 @@ public class Robot extends IterativeRobot {
 	VictorSP balllauncher; // motor for launching the balls
 	
 	AnalogInput range_front, range_rear; // two different rangefinders
-	Encoder launcherencoder; // detects rate at which launcher spins
+	Counter launcherencoder; // detects rate at which launcher spins
 	ADIS16448_IMU imu; // fancy IMU on MXP port
 	AnalogInput cradle_prox;
 	
@@ -41,7 +41,7 @@ public class Robot extends IterativeRobot {
 		range_rear = new AnalogInput(1); // analog rangefinder on the front
 		cradle_prox = new AnalogInput(2); // IR proximity sensor
 		
-		launcherencoder = new Encoder(0, 1, false, Encoder.EncodingType.k1X); // encoder on the CIM that runs the fuel shooter
+		launcherencoder = new Counter(0); // encoder on the CIM that runs the fuel shooter
 		imu = new ADIS16448_IMU(); // the fancy IMU that plugs into the MXP
 		
 		// sensor processing

@@ -11,8 +11,8 @@ A few notes about the code this year:
 - **PWM 2** - ball launcher flywheel ESC
 - **Analog in 0** - front rangefinder input
 - **Analog in 1** - rear rangefinder input
+- **Analog in 2** - IR proximity sensor in gear cradle
 - **Digital 0** - launcher encoder channel A
-- **Digital 1** - launcher encoder channel B
 
 **Control devices**:
 
