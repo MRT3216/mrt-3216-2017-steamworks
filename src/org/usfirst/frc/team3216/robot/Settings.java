@@ -18,6 +18,12 @@ public class Settings {
 	}
 	
 	static void add(String name, double def, double mi, double ma) { // add a setting with the default value
+		if (pref.getBoolean("reset",true)) { //  if we set reset to true and reboot, it deletes all keys and resets to the default that the code specifies
+			for (Object i: pref.getKeys()) {
+				pref.remove((String)i);
+			}
+			pref.putBoolean("reset", false);
+		}
 		Settings temp = new Settings(name,def,mi,ma);
 		settings.put(name, temp);
 	}

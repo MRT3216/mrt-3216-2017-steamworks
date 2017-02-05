@@ -64,6 +64,10 @@ void draw() {
   } else {
     text("Disonnected",460,25);
   }
+  fill(255,255,0);
+  rect(450,36,170,30);
+  fill(2);
+  text("reset - hover and press R",455,56);
 }
 
 
@@ -93,10 +97,13 @@ float getSetting(String z) { // needed to simplify this
 
 void keyPressed() { // space resets the max/mix stuff
   if (key == ' ') {
-    minbat_v = 1000;
-    maxbat_v = -1000;
-    ch_max = new float[16];
     initset(); // refresh from server
+    for (Sensor sen: sensors) {
+      sen.reset();
+    }
+  }
+  if (key == 'r' && mouseX > 450 && mouseX < 450+170 && mouseY > 36 && mouseY < 36+30) {
+    pref.putBoolean("reset",true);
   }
 }
 
@@ -141,41 +148,3 @@ class ConnectionListener implements IRemoteConnectionListener {
     connected = false;
   }
 }
-
-/*
-  // accelerometer
-  float accx = (float)getNumber("accel_x",0);
-  float accy = (float)getNumber("accel_y",0);
-  float accz = (float)getNumber("accel_z",0);
-  fill(255,0,0);
-  rect(20,amap*8+15,20,accx*amap);
-  fill(0,255,0);
-  rect(40,amap*8+15,20,accy*amap);
-  fill(0,0,255);
-  rect(60,amap*8+15,20,accz*amap);
-  fill(255);
-  stroke(255);
-  text("Accelerometer",0,13);
-  text("X",23,amap*8+15);
-  text("Y",43,amap*8+15);
-  text("Z",63,amap*8+15);
-  strokeWeight(1);
-  line(85,height,85,0);
-  line(0,amap*16+20,85,amap*16+20);
-   
-  // gyro
-  float gyrorot = (float)getNumber("gyro_r",0);
-  float gyrorate = (float)getNumber("gyro_s",0);
-  PVector rot = PVector.fromAngle(radians(gyrorot));
-  rot.mult(40);
-  strokeWeight(4);
-  line(41,amap*16+70,41+rot.x,amap*16+70+rot.y);
-  stroke(255,0,0);
-  point(41+rot.x,amap*16+70+rot.y);
-  text("Gyro",0,amap*16+30);
-  text((int)gyrorot%360 + " deg",0,amap*16+40);
-  text(((int)gyrorate*100)/100 + " deg/s",0,amap*16+120);
-  */
-  
-  // maybe...
-  

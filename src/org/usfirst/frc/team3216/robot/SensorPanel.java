@@ -29,7 +29,7 @@ public class SensorPanel {
 		}
 	}
 	
-	enum Type {NUMBER, BAR, CENTER};
+	enum Type {NUMBER, NUMBER_STAT, BAR, BAR_STAT, CENTER};
 	
 	///////////////////////// dynamic
 	
@@ -58,6 +58,12 @@ public class SensorPanel {
 			break;
 		case CENTER:
 			datatable.putNumber(id+"-type", 3);
+			break;
+		case NUMBER_STAT:
+			datatable.putNumber(id+"-type", 4);
+			break;
+		case BAR_STAT:
+			datatable.putNumber(id+"-type", 5);
 			break;
 		}
 		

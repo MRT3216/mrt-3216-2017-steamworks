@@ -25,22 +25,7 @@ public class Robot extends IterativeRobot {
 	
 	
 	public void robotInit() {
-		/// persistent settings are set up here
-		Settings.add("deadzone", 0.07,0,1); // deadzone in joysticks
-		Settings.add("motormap", 0.7, 0, 1); // motor slow down factor
-		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
-		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
-		Settings.add("launcher-p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
-		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pixels in which to aim at vision targets
-		Settings.add("geardetect", 1000, 0, 4096); // analog read form the IR sensor to tell when the gear is present
-		// auto settings
-		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
-		Settings.add("autondelay", 4, 0, 15); // delays during auton
-		Settings.add("autondist1", 60, 0, 250); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
-		Settings.add("autonangle", 60, 0, 100); // angle to turn in auto when targeting the lifts
-		Settings.add("liftdist", 20, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder) (also used when auto-targeting in teleop)
-		Settings.add("autonturnspeed", 0.4, 0, 1); // rate to turn in auto (very slow is good, but not too slow)
-		
+		initializeStuff(); // see the bottom of the file
 		// input devices
 		xBox = new Joystick(0); // joystick port 0
 		bpanel = new Joystick(1); // secondary button panel
@@ -54,64 +39,21 @@ public class Robot extends IterativeRobot {
 		// sensors
 		range_front = new AnalogInput(0); // analog rangefinder on the front
 		range_rear = new AnalogInput(1); // analog rangefinder on the front
-		front_avg = new MovingAverage(5,250); // moving average for rangefinder (samples, start value)
-		rear_avg = new MovingAverage(5,0); // moving average for rangefinder (samples, start value)
 		cradle_prox = new AnalogInput(2); // IR proximity sensor
 		
 		launcherencoder = new Encoder(0, 1, false, Encoder.EncodingType.k1X); // encoder on the CIM that runs the fuel shooter
 		imu = new ADIS16448_IMU(); // the fancy IMU that plugs into the MXP
 		
+		// sensor processing
+		front_avg = new MovingAverage(5,250); // moving average for rangefinder (samples, start value)
+		rear_avg = new MovingAverage(5,0); // moving average for rangefinder (samples, start value)
+		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
-		
-		// set up the sensors!
-		SensorPanel.add("pwr_v", "PDB Voltage", SensorPanel.Type.BAR, 0, 15, "V");
-		SensorPanel.add("ctl_v", "Controller Voltage", SensorPanel.Type.BAR, 0, 15, "V");
-		SensorPanel.add("pwr_c", "PDB Total Current", SensorPanel.Type.BAR, 0, 500, "A");
-		SensorPanel.add("pwr_t", "PDB Temperature", SensorPanel.Type.NUMBER, 0, 1, "F");
-		for (int i = 0; i < 16; i++) SensorPanel.add("pwr_c_"+i, "PDB Current CH"+i, SensorPanel.Type.BAR, 0, 15, "A");
-		SensorPanel.add("range_f", "Front Rangefinder", SensorPanel.Type.BAR, 0, 260, "cm");
-		SensorPanel.add("range_r", "Rear Rangefinder", SensorPanel.Type.BAR, 0, 260, "cm");
-		SensorPanel.add("gyro_x", "Gyroscope X", SensorPanel.Type.NUMBER, 0, 1, "deg");
-		SensorPanel.add("gyro_y", "Gyroscope Y", SensorPanel.Type.NUMBER, 0, 1, "deg");
-		SensorPanel.add("gyro_z", "Gyroscope Z", SensorPanel.Type.NUMBER, 0, 1, "deg");
-		SensorPanel.add("accel_x", "Accelerometer X", SensorPanel.Type.CENTER, -2, 2, "g");
-		SensorPanel.add("accel_y", "Accelerometer Y", SensorPanel.Type.CENTER, -2, 2, "g");
-		SensorPanel.add("accel_z", "Accelerometer Z", SensorPanel.Type.CENTER, -2, 2, "g");
-		SensorPanel.add("imu_p", "Pitch", SensorPanel.Type.NUMBER, 0, 1, "deg");
-		SensorPanel.add("imu_r", "Roll", SensorPanel.Type.NUMBER, 0, 1, "deg");
-		SensorPanel.add("imu_y", "Yaw", SensorPanel.Type.NUMBER, 0, 1, "deg");
-		SensorPanel.add("cradle_p", "Cradle Proximity", SensorPanel.Type.BAR, 0, 4096, "");
-		SensorPanel.add("enc_r", "Launcher encoder", SensorPanel.Type.NUMBER, 0, 1, "rpm");
-		
-		//SensorPanel.add("", "", SensorPanel.Type.BAR, 0, 1, "");
-		
-		
-		// set up auton chooser
-		SendableChooser<Station> station = new SendableChooser<Station>(); // pretty simple to choose mode
-		station.addDefault("Center Station", Station.CENTER); // default is center, where we just drive froward
-		station.addObject("Left station", Station.LEFT); // we prefer to be on the side of the high goal so we can shoot
-		station.addObject("Right station", Station.RIGHT); // however we want all options to be open
-		
-		// lay out the auton state machines (stages)
-		StateMachine.add("initial_delay", 0.5); // start out by pausing for a moment
-		StateMachine.add("drive_back_1"); // back up (gear on back) specified distance
-		StateMachine.add("turn"); // rotate to face the peg if needed
-		StateMachine.add("drive_back_2"); // drive again up to the peg (with vision)
-		StateMachine.add("wait_gear"); // wait until the gear is lifted
-		StateMachine.add("drive_fwd_3"); // drive up to the point where we can shoot
-		StateMachine.add("aim_high"); // aim for the high goal with vision
-		StateMachine.add("shoot"); // shoot as many balls as possible
-		
-		// statemachines to handle the gear placing 
-		StateMachine.add("center_gear","gear"); // center the gear cradle first
-		StateMachine.add("aim_gear","gear"); // turn so the vision targets are in the middle of the FOV
-		StateMachine.add("drive_gear","gear"); // drive until the robot gets to the lift
-		StateMachine.add("pause_gear","gear"); // wait (don't start another aiming run)
 	}
 	
 	enum Alliance { RED, BLUE } // assymetric field means we need different auto for the red and blue sides
-	enum Station { LEFT, RIGHT, CENTER } // also different auto based on what station we're in front of
+	enum Station { LEFT, RIGHT, CENTER, HALT } // also different auto based on what station we're in front of
 	
 	Alliance auto_alliance = Alliance.RED; // defaults to red alliance here if the communication errors or something
 	Station auto_station = Station.CENTER; // defaults to center (simplest) if chooser errors somehow
@@ -154,8 +96,9 @@ public class Robot extends IterativeRobot {
 		if (StateMachine.isRunning("drive_back_1") && // first drive stage
 				front_avg.getAverage() > Settings.get("autondist1")) { // use the front rangefinder when driving backwards to see the back wall
 			StateMachine.cancel("drive_back_1"); // StateMachine makes my life so much easier compared to last year
-			StateMachine.start("turn"); // then turn 
-
+			if (auto_station != Station.HALT) { // if we select Halt, just stop here after crossing the baseline (though why we would makes no sense)
+				StateMachine.start("turn"); // then turn 
+			}
 		}
 		if (StateMachine.isRunning("turn") && (
 				(auto_station == Station.LEFT && imu.getAngle() > Settings.get("autonangle")) || // if it turns the wrong way, flip LEFT and RIGHT
@@ -211,9 +154,6 @@ public class Robot extends IterativeRobot {
 	double leftdrive_in, rightdrive_in;
 	// This function is called periodically during operator control
 	public void teleopPeriodic() {
-		// this took a lot of guess-and-check, since several 
-		// axes were messed up this year. don't trust the 
-		// joystick explorer, use the DS for testing these
 		leftdrive_in = xBox.getRawAxis(1); // these are supposed to be the vertical axes (for tank drive)
 		rightdrive_in = xBox.getRawAxis(5); // checked
 		
@@ -340,18 +280,16 @@ public class Robot extends IterativeRobot {
 		
 		Settings.sync(); // this syncs local settings with the NetworkTable and the DS config utility
 		
-		syncSensors(); // TODO: disable this line for competition because it's only for testing
+		syncSensors(); // TODO: disable this line for competition because it's mainly for testing
 	}
 	
 	void syncSensors() {
 		try { // put data into table (probably disable this during comp)
-			
 			SensorPanel.report("pwr_v",pdp.getVoltage()); // PDP voltage (not the same as DS voltage)
 			SensorPanel.report("pwr_t",pdp.getTemperature()); // useful to tell if there are things heating up
 			SensorPanel.report("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
 			SensorPanel.report("pwr_c",pdp.getTotalCurrent()); // total current draw
 			for (int i = 0; i < 16; i++) SensorPanel.report("pwr_c_"+i, pdp.getCurrent(i)); // current draw for all 16 channels
-			
 			SensorPanel.report("range_f",front_avg.getAverage()); // averaged rangefinder value
 			SensorPanel.report("range_r",rear_avg.getAverage()); // averaged rangefinder value
 			SensorPanel.report("gyro_x",imu.getAngleX()); // gyroscope on IMU
@@ -369,4 +307,68 @@ public class Robot extends IterativeRobot {
 			System.out.println("error in syncSensors");
 		} // runtime exception could be caused by CAN timeout
 	}
+	
+	void initializeStuff() {
+		// all of this used to be up in the init but it's nice to have it down here out of the way
+		/// persistent settings are set up here
+		Settings.add("deadzone", 0.07,0,1); // deadzone in joysticks
+		Settings.add("motormap", 0.7, 0, 1); // motor slow down factor
+		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
+		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
+		Settings.add("launcher-p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
+		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pixels in which to aim at vision targets
+		Settings.add("geardetect", 1000, 0, 4096); // analog read form the IR sensor to tell when the gear is present
+		// auto settings
+		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
+		Settings.add("autondelay", 4, 0, 15); // delays during auton
+		Settings.add("autondist1", 60, 0, 250); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
+		Settings.add("autonangle", 60, 0, 100); // angle to turn in auto when targeting the lifts
+		Settings.add("liftdist", 20, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder) (also used when auto-targeting in teleop)
+		Settings.add("autonturnspeed", 0.4, 0, 1); // rate to turn in auto (very slow is good, but not too slow)
+		
+		// set up the sensors!
+		SensorPanel.add("pwr_v", "PDB Voltage", SensorPanel.Type.BAR_STAT, 0, 15, "V");
+		SensorPanel.add("ctl_v", "Controller Voltage", SensorPanel.Type.BAR_STAT, 0, 15, "V");
+		SensorPanel.add("pwr_c", "PDB Total Current", SensorPanel.Type.BAR_STAT, 0, 500, "A");
+		SensorPanel.add("pwr_t", "PDB Temperature", SensorPanel.Type.NUMBER, 0, 1, "F");
+		for (int i = 0; i < 16; i++) SensorPanel.add("pwr_c_"+i, "PDB Current CH"+i, SensorPanel.Type.BAR_STAT, 0, 15, "A");
+		SensorPanel.add("range_f", "Front Rangefinder", SensorPanel.Type.BAR, 0, 260, "cm");
+		SensorPanel.add("range_r", "Rear Rangefinder", SensorPanel.Type.BAR, 0, 260, "cm");
+		SensorPanel.add("gyro_x", "Gyroscope X", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("gyro_y", "Gyroscope Y", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("gyro_z", "Gyroscope Z", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("accel_x", "Accelerometer X", SensorPanel.Type.CENTER, -2, 2, "g");
+		SensorPanel.add("accel_y", "Accelerometer Y", SensorPanel.Type.CENTER, -2, 2, "g");
+		SensorPanel.add("accel_z", "Accelerometer Z", SensorPanel.Type.CENTER, -2, 2, "g");
+		SensorPanel.add("imu_p", "Pitch", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("imu_r", "Roll", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("imu_y", "Yaw", SensorPanel.Type.NUMBER, 0, 1, "deg");
+		SensorPanel.add("cradle_p", "Cradle Proximity", SensorPanel.Type.BAR, 0, 4096, "");
+		SensorPanel.add("enc_r", "Launcher encoder", SensorPanel.Type.NUMBER, 0, 1, "rpm");
+		//SensorPanel.add("", "", SensorPanel.Type.BAR, 0, 1, "");
+		
+		// lay out the auton state machines (stages)
+		StateMachine.add("initial_delay", 0.5); // start out by pausing for a moment
+		StateMachine.add("drive_back_1"); // back up (gear on back) specified distance
+		StateMachine.add("turn"); // rotate to face the peg if needed
+		StateMachine.add("drive_back_2"); // drive again up to the peg (with vision)
+		StateMachine.add("wait_gear"); // wait until the gear is lifted
+		StateMachine.add("drive_fwd_3"); // drive up to the point where we can shoot
+		StateMachine.add("aim_high"); // aim for the high goal with vision
+		StateMachine.add("shoot"); // shoot as many balls as possible
+		
+		// statemachines to handle the gear placing 
+		StateMachine.add("center_gear","gear"); // center the gear cradle first
+		StateMachine.add("aim_gear","gear"); // turn so the vision targets are in the middle of the FOV
+		StateMachine.add("drive_gear","gear"); // drive until the robot gets to the lift
+		StateMachine.add("pause_gear","gear"); // wait (don't start another aiming run)
+		
+		// set up auton chooser
+		SendableChooser<Station> station = new SendableChooser<Station>(); // pretty simple to choose mode
+		station.addDefault("Center Station", Station.CENTER); // default is center, where we just drive froward
+		station.addObject("Left station", Station.LEFT); // we prefer to be on the side of the high goal so we can shoot
+		station.addObject("Right station", Station.RIGHT); // however we want all options to be open
+		station.addObject("Do Nothing", Station.HALT);
+	}
 }
+
