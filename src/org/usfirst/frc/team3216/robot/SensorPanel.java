@@ -7,13 +7,16 @@ import edu.wpi.first.wpilibj.networktables.NetworkTable;
 public class SensorPanel {
 	static Map<String,SensorPanel> sensors = new HashMap<String,SensorPanel>(); // hashmap to hold the objects
 	static NetworkTable datatable;
+	static int nums = 0;
 	
 	static void add(String id, String name, Type type, double min, double max, String units) {
 		if (datatable == null) {
 			datatable = NetworkTable.getTable("sensor_table");
+			for (String s: datatable.getKeys()) { datatable.delete(s); }
 		}
 		
-		SensorPanel temp = new SensorPanel(id,name,type,min,max,units);
+		SensorPanel temp = new SensorPanel(nums + "." + id,name,type,min,max,units);
+		nums++;
 		sensors.put(id,temp);
 	}
 	
@@ -42,26 +45,26 @@ public class SensorPanel {
 		this.max = max;
 		this.units = units;
 		
-		datatable.putString(id+"_name", name);
-		datatable.putString(id+"_units", units);
-		datatable.putNumber(id+"_min", min);
-		datatable.putNumber(id+"_max", max);
+		datatable.putString(id+"-name", name);
+		datatable.putString(id+"-units", units);
+		datatable.putNumber(id+"-min", min);
+		datatable.putNumber(id+"-max", max);
 		switch (type) {
 		case NUMBER:
-			datatable.putNumber(id+"_type", 1);
+			datatable.putNumber(id+"-type", 1);
 			break;
 		case BAR:
-			datatable.putNumber(id+"_type", 2);
+			datatable.putNumber(id+"-type", 2);
 			break;
 		case CENTER:
-			datatable.putNumber(id+"_type", 3);
+			datatable.putNumber(id+"-type", 3);
 			break;
 		}
 		
-		datatable.putNumber(id+"_val", -1);
+		datatable.putNumber(id+"-val", -1);
 	}
 	
 	private void _report(double value) {
-		datatable.putNumber(id+"_val", value);
+		datatable.putNumber(this.id+"-val", value);
 	}
 }

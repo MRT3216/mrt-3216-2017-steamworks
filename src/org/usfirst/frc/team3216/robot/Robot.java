@@ -30,7 +30,7 @@ public class Robot extends IterativeRobot {
 		Settings.add("motormap", 0.7, 0, 1); // motor slow down factor
 		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
-		Settings.add("launcher_p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
+		Settings.add("launcher-p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
 		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pixels in which to aim at vision targets
 		Settings.add("geardetect", 1000, 0, 4096); // analog read form the IR sensor to tell when the gear is present
 		// auto settings
@@ -75,9 +75,9 @@ public class Robot extends IterativeRobot {
 		SensorPanel.add("gyro_x", "Gyroscope X", SensorPanel.Type.NUMBER, 0, 1, "deg");
 		SensorPanel.add("gyro_y", "Gyroscope Y", SensorPanel.Type.NUMBER, 0, 1, "deg");
 		SensorPanel.add("gyro_z", "Gyroscope Z", SensorPanel.Type.NUMBER, 0, 1, "deg");
-		SensorPanel.add("accel_x", "Accelerometer X", SensorPanel.Type.CENTER, 0, 1, "g");
-		SensorPanel.add("accel_y", "Accelerometer Y", SensorPanel.Type.CENTER, 0, 1, "g");
-		SensorPanel.add("accel_z", "Accelerometer Z", SensorPanel.Type.CENTER, 0, 1, "g");
+		SensorPanel.add("accel_x", "Accelerometer X", SensorPanel.Type.CENTER, -2, 2, "g");
+		SensorPanel.add("accel_y", "Accelerometer Y", SensorPanel.Type.CENTER, -2, 2, "g");
+		SensorPanel.add("accel_z", "Accelerometer Z", SensorPanel.Type.CENTER, -2, 2, "g");
 		SensorPanel.add("imu_p", "Pitch", SensorPanel.Type.NUMBER, 0, 1, "deg");
 		SensorPanel.add("imu_r", "Roll", SensorPanel.Type.NUMBER, 0, 1, "deg");
 		SensorPanel.add("imu_y", "Yaw", SensorPanel.Type.NUMBER, 0, 1, "deg");
@@ -254,10 +254,10 @@ public class Robot extends IterativeRobot {
 			if (Math.abs(rate - idealrate) < Settings.get("launcherdeadzone")) { // handle deadzone mechanics for the speed
 				balllauncher.set(launcherspeed); // just run the motor with the last value
 			} else if (rate > idealrate) { // if it's too fast:
-				launcherspeed -= map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher_p")); // slow it down based on how far the discrepency is
+				launcherspeed -= map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // slow it down based on how far the discrepency is
 				balllauncher.set(launcherspeed); // set the new value
 			} else {
-				launcherspeed += map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher_p")); // speed it up
+				launcherspeed += map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // speed it up
 				balllauncher.set(launcherspeed); // set the new value
 			}
 		} else {
@@ -352,11 +352,13 @@ public class Robot extends IterativeRobot {
 	
 	void syncSensors() {
 		try { // put data into table (probably disable this during comp)
+			
 			SensorPanel.report("pwr_v",pdp.getVoltage()); // PDP voltage (not the same as DS voltage)
 			SensorPanel.report("pwr_t",pdp.getTemperature()); // useful to tell if there are things heating up
 			SensorPanel.report("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
 			SensorPanel.report("pwr_c",pdp.getTotalCurrent()); // total current draw
 			for (int i = 0; i < 16; i++) SensorPanel.report("pwr_c_"+i, pdp.getCurrent(i)); // current draw for all 16 channels
+			
 			SensorPanel.report("range_f",front_avg.getAverage()); // averaged rangefinder value
 			SensorPanel.report("range_r",rear_avg.getAverage()); // averaged rangefinder value
 			SensorPanel.report("gyro_x",imu.getAngleX()); // gyroscope on IMU
@@ -370,6 +372,8 @@ public class Robot extends IterativeRobot {
 			SensorPanel.report("imu_y",imu.getYaw());
 			SensorPanel.report("cradle_p",cradle_prox.getValue());
 			SensorPanel.report("enc_r",launcherencoder.getRate() * 60);
-		} catch (RuntimeException a) { } // runtime exception could be caused by CAN timeout
+		} catch (RuntimeException a) {
+			System.out.println("error in syncSensors");
+		} // runtime exception could be caused by CAN timeout
 	}
 }
