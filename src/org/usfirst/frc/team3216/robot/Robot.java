@@ -125,10 +125,15 @@ public class Robot extends IterativeRobot {
 				// ???
 			}
 		}
-		if (StateMachine.isRunning("aim_high") &&
-				true /* TODO: fix sensor here*/) { // use the rear rangefinder when driving backwards to see the lift
+		if (StateMachine.isRunning("drive_fwd_3") && // rotate so we're aiming at the tower
+				rear_avg.getLatest() > Settings.get("autondist2")) { 
+			StateMachine.cancel("drive_fwd_3");
+			StateMachine.start("aim_high");  
+		}
+		if (StateMachine.isRunning("aim_high") && // rotate so we're aiming at the tower
+				true /* TODO: fix sensor here*/) { 
 			StateMachine.cancel("aim_high");
-			StateMachine.start("shoot"); // wait for the user to lift the gear 
+			StateMachine.start("shoot");  
 		}
 		
 		// TODO: add the code in here to run motors, etc for auto stages
@@ -370,6 +375,7 @@ public class Robot extends IterativeRobot {
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
 		Settings.add("autondist1", 60, 0, 250); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
+		Settings.add("autondist2", 100, 0, 250); // distance to drive from the lift before shooting
 		Settings.add("autonangle", 60, 0, 100); // angle to turn in auto when targeting the lifts
 		Settings.add("liftdist", 20, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder) (also used when auto-targeting in teleop)
 		Settings.add("autonturnspeed", 0.4, 0, 1); // rate to turn in auto (very slow is good, but not too slow)
