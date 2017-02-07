@@ -7,6 +7,7 @@ public class MovingAverage {
 	int index; // location within the array to store the value
 	double r_average; // smoothed value
 	double total; // running total
+	double latest;
 	
 	MovingAverage(int num) {
 		this.numreadings = num; // init everything
@@ -14,6 +15,7 @@ public class MovingAverage {
 		this.index = 0;
 		this.r_average = 0;
 		this.total = 0;
+		this.latest = 0;
 	}
 	
 	MovingAverage(int num, double init) { // starts the average at a specified value to avoid the slope up from zero in the first few seconds
@@ -23,13 +25,27 @@ public class MovingAverage {
 		this.r_average = init;
 		for (int i = 0; i < this.numreadings; i++) this.readings[i] = init; // set to initial value 
 		this.total = numreadings * init;
+		this.latest = init;
 	}
 	
 	double getAverage() {
 		return this.r_average;
 	}
 	
+	double getLatest() {
+		// if the value is within a margin of error, return it. otherwise, return the average.
+		// this always allows us to have the latest value without having big spikes
+		double moe = Math.abs(this.latest - this.r_average) / this.r_average;
+		if (moe < Settings.get("marginoferror")) {
+			return this.latest;
+		} else {
+			return this.r_average;
+		}
+		
+	}
+	
 	void newSample(double sample) {
+		this.latest = sample;
 		this.total -= this.readings[this.index];         //subtract the last reading
 		this.readings[this.index] = sample;              //place value from sensor
 		this.total += this.readings[this.index];         //add the reading to the total

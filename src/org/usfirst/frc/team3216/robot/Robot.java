@@ -14,7 +14,8 @@ public class Robot extends IterativeRobot {
 	DriverStation ds; // getting DS state, other info
 
 	VictorSP leftdrive,rightdrive; // y-cable these outputs to the two speed controllers (2 motors per side)
-	VictorSP balllauncher; // motor for launching the balls
+	Spark balllauncher; // motor for launching the balls
+	Spark balllift; // two BAG motors running the intake
 	
 	AnalogInput range_front, range_rear; // two different rangefinders
 	Counter launcherencoder; // detects rate at which launcher spins
@@ -39,7 +40,8 @@ public class Robot extends IterativeRobot {
 		// speed controllers
 		leftdrive = new VictorSP(0); // left motors = pwm 0
 		rightdrive = new VictorSP(1); // right motors = pwm 1
-		balllauncher = new VictorSP(2); // flywheel to launch fuel = pwm 2
+		balllauncher = new Spark(2); // flywheel to launch fuel = pwm 2
+		balllift = new Spark(3);
 		// sensors
 		range_front = new AnalogInput(0); // analog rangefinder on the front
 		range_rear = new AnalogInput(1); // analog rangefinder on the front
@@ -49,8 +51,8 @@ public class Robot extends IterativeRobot {
 		imu = new ADIS16448_IMU(); // the fancy IMU that plugs into the MXP
 		
 		// sensor processing
-		front_avg = new MovingAverage(5,250); // moving average for rangefinder (samples, start value)
-		rear_avg = new MovingAverage(5,0); // moving average for rangefinder (samples, start value)
+		front_avg = new MovingAverage(7,250); // moving average for rangefinder (samples, start value)
+		rear_avg = new MovingAverage(7,0); // moving average for rangefinder (samples, start value)
 		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
@@ -96,7 +98,7 @@ public class Robot extends IterativeRobot {
 			}
 		}
 		if (StateMachine.isRunning("drive_back_1") && // first drive stage
-				front_avg.getAverage() > Settings.get("autondist1")) { // use the front rangefinder when driving backwards to see the back wall
+				front_avg.getLatest() > Settings.get("autondist1")) { // use the front rangefinder when driving backwards to see the back wall
 			StateMachine.cancel("drive_back_1"); // StateMachine makes my life so much easier compared to last year
 			if (auto_station != Station.HALT) { // if we select Halt, just stop here after crossing the baseline (though why we would makes no sense)
 				StateMachine.start("turn"); // then turn 
@@ -109,12 +111,12 @@ public class Robot extends IterativeRobot {
 			StateMachine.start("drive_back_2");
 		}
 		if (StateMachine.isRunning("drive_back_2") &&
-				rear_avg.getAverage() < Settings.get("liftdist")) { // use the rear rangefinder when driving backwards to see the lift
+				rear_avg.getLatest() < Settings.get("liftdist")) { // use the rear rangefinder when driving backwards to see the lift
 			StateMachine.cancel("drive_back_2");
 			StateMachine.start("wait_gear"); // wait for the user to lift the gear 
 		}
 		if (StateMachine.isRunning("wait_gear") &&
-				true /* insert a sensor read here */) { // wait until the gear is lifted out of the cradle
+				cradle_prox.getValue() > Settings.get("geardetect")) { // wait until the gear is lifted out of the cradle
 			StateMachine.cancel("wait_gear");
 			if ((auto_alliance == Alliance.BLUE && auto_station == Station.LEFT) ||  // these are the two positions from where we could shoot
 					(auto_alliance == Alliance.RED && auto_station == Station.RIGHT)) { // i hope we can get these every time
@@ -123,7 +125,11 @@ public class Robot extends IterativeRobot {
 				// ???
 			}
 		}
-		// TODO: finish the state machines for targeting and shooting high goal
+		if (StateMachine.isRunning("aim_high") &&
+				true /* TODO: fix sensor here*/) { // use the rear rangefinder when driving backwards to see the lift
+			StateMachine.cancel("aim_high");
+			StateMachine.start("shoot"); // wait for the user to lift the gear 
+		}
 		
 		// TODO: add the code in here to run motors, etc for auto stages
 		if (StateMachine.isRunning("drive_back_1")) { // drive backward
@@ -135,15 +141,16 @@ public class Robot extends IterativeRobot {
 				
 			}
 		} else if (StateMachine.isRunning("drive_back_2")) { // drive back, targeting the lift with vision
-			
+			placeGear(true);
 		} else if (StateMachine.isRunning("wait_gear")) { // wait for the gear to be lifted
+			placeGear(false);
 			// probably don't need to do anything here
 		} else if (StateMachine.isRunning("drive_fwd_3")) { // drive forward
 			
 		} else if (StateMachine.isRunning("aim_high")) { // aim based on the vision
-			
+			aimLauncher();
 		} else if (StateMachine.isRunning("shoot")) { // shoot balls into the high goal
-			
+			runLauncher(true);
 		}
 	}
 	
@@ -154,13 +161,11 @@ public class Robot extends IterativeRobot {
 
 	// variables used in teleop:
 	// the variables that have _in are from the joystick
-	//                         _btn is from the button panel
 	double leftdrive_in, rightdrive_in;
-	
 	boolean runintake_in,  runshooter_in,  rungear_in, reverse_in,  slow_in;
-	//boolean runlaunch_btn, runshooter_btn, rungear_btn, reverse_btn, slow_btn;
+	//boolean runlaunch_btn, runshooter_btn, rungear_btn, reverse_btn, slow_btn; // don't need separate vars for button panel (yet)
 	
-	boolean buttons_connected = false;
+	boolean buttons_connected = false; // not used but possibly will be
 	// This function is called periodically during operator control
 	public void teleopPeriodic() {
 		leftdrive_in = xBox.getRawAxis(1); // these are supposed to be the vertical axes (for tank drive)
@@ -181,11 +186,11 @@ public class Robot extends IterativeRobot {
 			slow_in |= bpanel.getRawButton(5);
 			
 			buttons_connected = true;
-		} catch (Exception e) { 
+		} catch (Exception e) { // this will throw errors if the button panel is not connected
 			buttons_connected = false;
 		}
 		
-		if (slow_in) {
+		if (slow_in) { // change the motor map so we have more maneuverability (possibly reverse this??)
 			rightdrive_in = rightdrive_in * Settings.get("slow");
 			leftdrive_in = leftdrive_in * Settings.get("slow");
 		}
@@ -196,11 +201,11 @@ public class Robot extends IterativeRobot {
 			drive(leftdrive_in, rightdrive_in); // drive function
 		}
 		
-		runLauncher(runshooter_in);
+		runLauncher(runshooter_in); // run launcher if buttons are pressed
 		
-		placeGear(rungear_in);
+		placeGear(rungear_in); // do the whole gear placement routine of the button is pressed
 		
-		intake(runintake_in);
+		intake(runintake_in); // run the intake motor if button is pressed
 	}
 	
 	/* the following useful functions:
@@ -210,7 +215,7 @@ public class Robot extends IterativeRobot {
 	
 	//////////////////////////////// various management functions
 	
-	void drive(double left, double right) { // move!
+	void drive(double left, double right) { // tank drive
 		right = -right;
 		
 		if (Math.abs(left) > Settings.get("deadzone")) { // deadzone the motors
@@ -233,14 +238,12 @@ public class Robot extends IterativeRobot {
 			double rate = launcherencoder.getRate() * 60; // convert encoder to RPM
 			double idealrate = Settings.get("launcherrpm"); // ideal rpm specified in settings
 			if (Math.abs(rate - idealrate) < Settings.get("launcherdeadzone")) { // handle deadzone mechanics for the speed
-				balllauncher.set(launcherspeed); // just run the motor with the last value
 			} else if (rate > idealrate) { // if it's too fast:
 				launcherspeed -= Utility.map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // slow it down based on how far the discrepency is
-				balllauncher.set(launcherspeed); // set the new value
 			} else {
 				launcherspeed += Utility.map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // speed it up
-				balllauncher.set(launcherspeed); // set the new value
 			}
+			balllauncher.set(launcherspeed); // set the new value
 		} else {
 			balllauncher.set(0); // else, stop the motor
 		}
@@ -269,7 +272,7 @@ public class Robot extends IterativeRobot {
 			StateMachine.cancel("aim_gear");
 			StateMachine.start("drive_gear");
 		} else if (StateMachine.isRunning("drive_gear") && 
-				rear_avg.getAverage() < Settings.get("liftdist")) {
+				rear_avg.getLatest() < Settings.get("liftdist")) {
 			StateMachine.cancel("drive_gear");
 			StateMachine.start("pause_gear");
 		}
@@ -295,7 +298,11 @@ public class Robot extends IterativeRobot {
 	}
 	
 	void intake(boolean on) { // just run the motors to lift fuel off the ground
-		
+		if (on) {
+			balllift.set(Settings.get("intakespeed"));
+		} else {
+			balllift.set(0);
+		}
 	}
 	
 	
@@ -313,7 +320,7 @@ public class Robot extends IterativeRobot {
 	public void robotPeriodic() {
 		//moving average for rangefinders
 		front_avg.newSample(range_front.getValue()); //  i think these inputs are in centimeters
-		rear_avg.newSample(range_rear.getValue());
+		rear_avg.newSample(range_rear.getValue()); // probably not though
 		
 		Settings.sync(); // this syncs local settings with the NetworkTable and the DS config utility
 		
@@ -323,8 +330,8 @@ public class Robot extends IterativeRobot {
 	void syncSensors() {
 		try { // put data into table (probably disable this during comp)
 			SensorPanel.report("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
-			SensorPanel.report("range_f",front_avg.getAverage()); // averaged rangefinder value
-			SensorPanel.report("range_r",rear_avg.getAverage()); // averaged rangefinder value
+			SensorPanel.report("range_f",front_avg.getLatest()); // averaged rangefinder value
+			SensorPanel.report("range_r",rear_avg.getLatest()); // averaged rangefinder value
 			SensorPanel.report("gyro_x",imu.getAngleX()); // gyroscope on IMU
 			SensorPanel.report("gyro_y",imu.getAngleY()); 
 			SensorPanel.report("gyro_z",imu.getAngleZ()); 
@@ -350,13 +357,15 @@ public class Robot extends IterativeRobot {
 		// all of this used to be up in the init but it's nice to have it down here out of the way
 		/// persistent settings are set up here
 		Settings.add("deadzone", 0.07,0,1); // deadzone in joysticks
-		Settings.add("motormap", 0.7, 0, 1); // motor slow down factor
-		Settings.add("slow", 0.07,0,1);
+		Settings.add("motormap", 1, 0, 1); // motor slow down factor
+		Settings.add("slow", 0.07,0,1); // multiplier for when we hit the slow down button
+		Settings.add("marginoferror", 10, 0, 150); // margin of error for the MovingAverage class when we call getLatest()
 		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
 		Settings.add("launcher-p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
 		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pixels in which to aim at vision targets
 		Settings.add("geardetect", 1000, 0, 4096); // analog read form the IR sensor to tell when the gear is present
+		Settings.add("intakespeed", 1, 0, 1); // speed to run the intake motors
 		// auto settings
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
@@ -407,7 +416,7 @@ public class Robot extends IterativeRobot {
 		station.addDefault("Center Station", Station.CENTER); // default is center, where we just drive froward
 		station.addObject("Left station", Station.LEFT); // we prefer to be on the side of the high goal so we can shoot
 		station.addObject("Right station", Station.RIGHT); // however we want all options to be open
-		station.addObject("Do Nothing", Station.HALT);
+		station.addObject("Do Nothing", Station.HALT); // of we want, we can just cross the base line and stop
 	}
 }
 
