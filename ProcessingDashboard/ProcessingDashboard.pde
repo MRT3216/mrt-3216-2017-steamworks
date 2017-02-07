@@ -94,6 +94,7 @@ void keyPressed() { // space resets the max/mix stuff
   }
   if (key == 'r' && mouseX > 450 && mouseX < 450+170 && mouseY > 36 && mouseY < 36+30) {
     pref.putBoolean("reset",true);
+    println("reset!");
   }
 }
 

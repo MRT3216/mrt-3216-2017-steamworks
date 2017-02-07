@@ -22,6 +22,7 @@ public class Settings {
 			for (Object i: pref.getKeys()) {
 				pref.remove((String)i);
 			}
+			System.out.println("Reset all settings!");
 			pref.putBoolean("reset", false);
 		}
 		Settings temp = new Settings(name,def,mi,ma);

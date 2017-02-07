@@ -1,6 +1,7 @@
 package org.usfirst.frc.team3216.robot;
 // all them imports:
 import edu.wpi.first.wpilibj.*;
+import edu.wpi.first.wpilibj.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
 import org.usfirst.frc.team3216.robot.Utility.*;
 
@@ -23,6 +24,8 @@ public class Robot extends IterativeRobot {
 	MovingAverage front_avg, rear_avg; // smooth spikes in the rangefinders input by averaging the last several samples
 	
 	SendableChooser<Station> station; // chooser for where we're stationed
+	
+	NetworkTable lifttracker,boilertracker;
 	
 	
 	public void robotInit() {
@@ -51,6 +54,9 @@ public class Robot extends IterativeRobot {
 		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
+		
+		lifttracker = NetworkTable.getTable("LiftTracker");
+		boilertracker = NetworkTable.getTable("TowerTracker");
 	}
 	
 	Alliance auto_alliance = Alliance.RED; // defaults to red alliance here if the communication errors or something
@@ -80,8 +86,6 @@ public class Robot extends IterativeRobot {
 
 	// This function is called periodically during autonomous
 	public void autonomousPeriodic() {
-		sendData(); // this also does the moving average stuff
-		
 		// first, we check the different triggers to advance the auton routine
 		if (StateMachine.check("initial_delay")) { // once finished sleeping
 			StateMachine.cancel("initial_delay");
@@ -156,8 +160,6 @@ public class Robot extends IterativeRobot {
 		rightdrive_in = xBox.getRawAxis(5); // checked
 		
 		drive(leftdrive_in, rightdrive_in); // drive function
-		
-		sendData(); // periodic function
 	}
 	
 	/* the following useful functions:
@@ -259,15 +261,15 @@ public class Robot extends IterativeRobot {
 	////////////////////////// miscellaneous stuff
 	
 	public void testPeriodic() {
-		sendData(); // send data in test
+		
 	}
 	
 	public void disabledPeriodic() {
-		sendData(); // send data in disabled
+		
 	}
 	
-	// this kinda became the all-encompassing function to handle periodic tasks.
-	void sendData() {
+	// all-encompassing function to handle periodic tasks.
+	public void robotPeriodic() {
 		//moving average for rangefinders
 		front_avg.newSample(range_front.getValue()); //  i think these inputs are in centimeters
 		rear_avg.newSample(range_rear.getValue());
@@ -279,11 +281,7 @@ public class Robot extends IterativeRobot {
 	
 	void syncSensors() {
 		try { // put data into table (probably disable this during comp)
-			SensorPanel.report("pwr_v",pdp.getVoltage()); // PDP voltage (not the same as DS voltage)
-			SensorPanel.report("pwr_t",pdp.getTemperature()); // useful to tell if there are things heating up
 			SensorPanel.report("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
-			SensorPanel.report("pwr_c",pdp.getTotalCurrent()); // total current draw
-			for (int i = 0; i < 16; i++) SensorPanel.report("pwr_c_"+i, pdp.getCurrent(i)); // current draw for all 16 channels
 			SensorPanel.report("range_f",front_avg.getAverage()); // averaged rangefinder value
 			SensorPanel.report("range_r",rear_avg.getAverage()); // averaged rangefinder value
 			SensorPanel.report("gyro_x",imu.getAngleX()); // gyroscope on IMU
@@ -297,7 +295,12 @@ public class Robot extends IterativeRobot {
 			SensorPanel.report("imu_y",imu.getYaw());
 			SensorPanel.report("cradle_p",cradle_prox.getValue());
 			SensorPanel.report("enc_r",launcherencoder.getRate() * 60);
-		} catch (RuntimeException a) {
+			// do these last so if they fail, the rest still runs
+			SensorPanel.report("pwr_c",pdp.getTotalCurrent()); // total current draw
+			SensorPanel.report("pwr_v",pdp.getVoltage()); // PDP voltage (not the same as DS voltage)
+			SensorPanel.report("pwr_t",pdp.getTemperature()); // useful to tell if there are things heating up
+			for (int i = 0; i < 16; i++) SensorPanel.report("pwr_c_"+i, pdp.getCurrent(i)); // current draw for all 16 channels
+		} catch (Exception a) {
 			System.out.println("error in syncSensors");
 		} // runtime exception could be caused by CAN timeout
 	}
