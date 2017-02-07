@@ -153,13 +153,54 @@ public class Robot extends IterativeRobot {
 	}
 
 	// variables used in teleop:
+	// the variables that have _in are from the joystick
+	//                         _btn is from the button panel
 	double leftdrive_in, rightdrive_in;
+	
+	boolean runintake_in,  runshooter_in,  rungear_in, reverse_in,  slow_in;
+	//boolean runlaunch_btn, runshooter_btn, rungear_btn, reverse_btn, slow_btn;
+	
+	boolean buttons_connected = false;
 	// This function is called periodically during operator control
 	public void teleopPeriodic() {
 		leftdrive_in = xBox.getRawAxis(1); // these are supposed to be the vertical axes (for tank drive)
 		rightdrive_in = xBox.getRawAxis(5); // checked
 		
-		drive(leftdrive_in, rightdrive_in); // drive function
+		runintake_in = xBox.getRawButton(1); // TODO: change these buttons
+		runshooter_in = xBox.getRawButton(2);
+		rungear_in = xBox.getRawButton(3);
+		reverse_in = xBox.getRawButton(4);
+		slow_in = xBox.getRawButton(5);
+		
+		try {
+			// button panel is in here so when we disconnect it, it doesn't throw errors
+			runintake_in |= bpanel.getRawButton(1); // TODO: change these indexes
+			runshooter_in |= bpanel.getRawButton(2);
+			rungear_in |= bpanel.getRawButton(3);
+			reverse_in |= bpanel.getRawButton(4);
+			slow_in |= bpanel.getRawButton(5);
+			
+			buttons_connected = true;
+		} catch (Exception e) { 
+			buttons_connected = false;
+		}
+		
+		if (slow_in) {
+			rightdrive_in = rightdrive_in * Settings.get("slow");
+			leftdrive_in = leftdrive_in * Settings.get("slow");
+		}
+		
+		if (reverse_in) { // we can drive backwards
+			drive(-rightdrive_in, -leftdrive_in); // drive backward
+		} else {
+			drive(leftdrive_in, rightdrive_in); // drive function
+		}
+		
+		runLauncher(runshooter_in);
+		
+		placeGear(rungear_in);
+		
+		intake(runintake_in);
 	}
 	
 	/* the following useful functions:
@@ -187,7 +228,7 @@ public class Robot extends IterativeRobot {
 	
 	double launcherspeed = 1; // this global value we set to the latest value written to the motors
 	
-	void runlauncher(boolean on) { // on is whether or not to run the shooter
+	void runLauncher(boolean on) { // on is whether or not to run the shooter
 		if (on) {
 			double rate = launcherencoder.getRate() * 60; // convert encoder to RPM
 			double idealrate = Settings.get("launcherrpm"); // ideal rpm specified in settings
@@ -253,7 +294,7 @@ public class Robot extends IterativeRobot {
 		
 	}
 	
-	void intake() { // just run the motors to lift fuel off the ground
+	void intake(boolean on) { // just run the motors to lift fuel off the ground
 		
 	}
 	
@@ -310,6 +351,7 @@ public class Robot extends IterativeRobot {
 		/// persistent settings are set up here
 		Settings.add("deadzone", 0.07,0,1); // deadzone in joysticks
 		Settings.add("motormap", 0.7, 0, 1); // motor slow down factor
+		Settings.add("slow", 0.07,0,1);
 		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
 		Settings.add("launcher-p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
