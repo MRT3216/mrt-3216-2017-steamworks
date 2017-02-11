@@ -19,7 +19,7 @@ class ScrollBar {
       val = map(mouseX - x,0,w,min,max);
     }
     
-    float computed = x + map(val,min,max+0.1,0,w);
+    float computed = x + map(val,min,max+0.00001,0,w);
     
     noStroke();
     fill(60);

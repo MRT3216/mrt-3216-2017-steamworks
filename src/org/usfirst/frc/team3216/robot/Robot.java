@@ -125,7 +125,7 @@ public class Robot extends IterativeRobot {
 				// ???
 			}
 		}
-		if (StateMachine.isRunning("drive_fwd_3") && // rotate so we're aiming at the tower
+		if (StateMachine.isRunning("drive_fwd_3") && // drive
 				rear_avg.getLatest() > Settings.get("autondist2")) { 
 			StateMachine.cancel("drive_fwd_3");
 			StateMachine.start("aim_high");  
@@ -224,13 +224,13 @@ public class Robot extends IterativeRobot {
 		right = -right;
 		
 		if (Math.abs(left) > Settings.get("deadzone")) { // deadzone the motors
-			leftdrive.set(Math.pow(left,3)*Settings.get("motormap")); // cubic motor map
+			leftdrive.set((Math.pow(left,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * left) * Settings.get("motorproportion")); // cubic motor map
 		} else {
 			leftdrive.set(0); // else stop it
 		}
 		
 		if (Math.abs(right) > Settings.get("deadzone")) { // deadzone
-			rightdrive.set(Math.pow(right,3)*Settings.get("motormap"));
+			rightdrive.set((Math.pow(right,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * right) * Settings.get("motorproportion"));
 		} else {
 			rightdrive.set(0); // else stop it
 		}
@@ -362,8 +362,9 @@ public class Robot extends IterativeRobot {
 		// all of this used to be up in the init but it's nice to have it down here out of the way
 		/// persistent settings are set up here
 		Settings.add("deadzone", 0.07,0,1); // deadzone in joysticks
-		Settings.add("motormap", 1, 0, 1); // motor slow down factor
-		Settings.add("slow", 0.07,0,1); // multiplier for when we hit the slow down button
+		Settings.add("motormap", 1, 0, 1); // motor cubic factor
+		Settings.add("motorproportion", 0.7, 0, 1); // motor proprortional slow factor
+		Settings.add("slow", 0.7,0,1); // multiplier for when we hit the slow down button
 		Settings.add("marginoferror", 10, 0, 150); // margin of error for the MovingAverage class when we call getLatest()
 		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
