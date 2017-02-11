@@ -169,7 +169,7 @@ public class Robot extends IterativeRobot {
 	// variables used in teleop:
 	// the variables that have _in are from the joystick
 	double leftdrive_in, rightdrive_in;
-	boolean runintake_in,  runshooter_in,  rungear_in, reverse_in,  slow_in;
+	boolean runintake_in,  runshooter_in,  rungear_in, reverse_in,  slow_in, straight_in;
 	//boolean runlaunch_btn, runshooter_btn, rungear_btn, reverse_btn, slow_btn; // don't need separate vars for button panel (yet)
 	
 	boolean buttons_connected = false; // not used but possibly will be
@@ -178,11 +178,12 @@ public class Robot extends IterativeRobot {
 		leftdrive_in = xBox.getRawAxis(1); // these are supposed to be the vertical axes (for tank drive)
 		rightdrive_in = xBox.getRawAxis(5); // checked
 		
-		runintake_in = xBox.getRawButton(1); // TODO: change these buttons
-		runshooter_in = xBox.getRawButton(2);
-		rungear_in = xBox.getRawButton(3);
-		reverse_in = xBox.getRawButton(4);
-		slow_in = xBox.getRawButton(5);
+		runintake_in = xBox.getRawButton(3); // X / blue
+		runshooter_in = xBox.getRawButton(2); // B / red
+		rungear_in = xBox.getRawButton(4); // Y / yellow
+		reverse_in = xBox.getRawButton(5); // left trigger (toggle)
+		slow_in = xBox.getRawButton(9); // press left joystick
+		straight_in = xBox.getRawButton(10); // press right joystick
 		
 		try {
 			// button panel is in here so when we disconnect it, it doesn't throw errors
@@ -191,6 +192,7 @@ public class Robot extends IterativeRobot {
 			rungear_in |= bpanel.getRawButton(3);
 			reverse_in |= bpanel.getRawButton(4);
 			slow_in |= bpanel.getRawButton(5);
+			straight_in |= bpanel.getRawButton(6);
 			
 			buttons_connected = true;
 		} catch (Exception e) { // this will throw errors if the button panel is not connected
@@ -198,6 +200,10 @@ public class Robot extends IterativeRobot {
 		}
 		
 		reverse.input(reverse_in);
+		
+		if (straight_in) { // so we can drive perfectly straight at any speed
+			leftdrive_in = rightdrive_in;
+		}
 		
 		if (slow_in) { // change the motor map so we have more maneuverability (possibly reverse this??)
 			rightdrive_in = rightdrive_in * Settings.get("slow");
