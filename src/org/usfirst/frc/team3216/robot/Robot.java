@@ -9,6 +9,7 @@ public class Robot extends IterativeRobot {
 	// setting up all the objects
 	// global objects:
 	Joystick xBox, bpanel; // xbox controller, obvoiusly (well actually a logitech gamepad) [also button panel]
+	Toggle reverse;
 	
 	PowerDistributionPanel pdp; // to get voltage/amperage stuff
 	DriverStation ds; // getting DS state, other info
@@ -34,6 +35,7 @@ public class Robot extends IterativeRobot {
 		// input devices
 		xBox = new Joystick(0); // joystick port 0
 		bpanel = new Joystick(1); // secondary button panel
+		reverse = new Toggle();
 		// communication
 		pdp = new PowerDistributionPanel(); // pdp object to read amperages, etc.
 		ds = DriverStation.getInstance(); // to get match info for LEDs
@@ -195,12 +197,14 @@ public class Robot extends IterativeRobot {
 			buttons_connected = false;
 		}
 		
+		reverse.input(reverse_in);
+		
 		if (slow_in) { // change the motor map so we have more maneuverability (possibly reverse this??)
 			rightdrive_in = rightdrive_in * Settings.get("slow");
 			leftdrive_in = leftdrive_in * Settings.get("slow");
 		}
 		
-		if (reverse_in) { // we can drive backwards
+		if (reverse.get()) { // we can drive backwards
 			drive(-rightdrive_in, -leftdrive_in); // drive backward
 		} else {
 			drive(leftdrive_in, rightdrive_in); // drive function
