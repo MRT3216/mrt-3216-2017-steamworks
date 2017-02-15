@@ -15,8 +15,9 @@ public class Robot extends IterativeRobot {
 	DriverStation ds; // getting DS state, other info
 
 	VictorSP leftdrive,rightdrive; // y-cable these outputs to the two speed controllers (2 motors per side)
-	Spark balllauncher; // motor for launching the balls
+	VictorSP balllauncher; // motor for launching the balls
 	Spark balllift; // two BAG motors running the intake
+	Talon agitator, feeder;
 	
 	AnalogInput range_front, range_rear; // two different rangefinders
 	Counter launcherencoder; // detects rate at which launcher spins
@@ -24,10 +25,14 @@ public class Robot extends IterativeRobot {
 	AnalogInput cradle_prox;
 	
 	MovingAverage front_avg, rear_avg; // smooth spikes in the rangefinders input by averaging the last several samples
+	SerialPort arduino;
+	Timer arduinoTimer;
 	
 	SendableChooser<Station> station; // chooser for where we're stationed
 	
 	NetworkTable lifttracker,boilertracker;
+	
+	boolean arduino_att = false;
 	
 	
 	public void robotInit() {
@@ -42,8 +47,11 @@ public class Robot extends IterativeRobot {
 		// speed controllers
 		leftdrive = new VictorSP(0); // left motors = pwm 0
 		rightdrive = new VictorSP(1); // right motors = pwm 1
-		balllauncher = new Spark(2); // flywheel to launch fuel = pwm 2
+		balllauncher = new VictorSP(2); // flywheel to launch fuel = pwm 2
 		balllift = new Spark(3);
+		agitator = new Talon(4);
+		feeder = new Talon(5);
+		
 		// sensors
 		range_front = new AnalogInput(0); // analog rangefinder on the front
 		range_rear = new AnalogInput(1); // analog rangefinder on the front
@@ -55,6 +63,15 @@ public class Robot extends IterativeRobot {
 		// sensor processing
 		front_avg = new MovingAverage(7,250); // moving average for rangefinder (samples, start value)
 		rear_avg = new MovingAverage(7,0); // moving average for rangefinder (samples, start value)
+		
+		try {
+			arduino = new SerialPort(115200,SerialPort.Port.kUSB);
+			arduino_att = true;
+		} catch (Exception e) {
+			arduino_att = false;
+		}
+		arduinoTimer = new Timer();
+		arduinoTimer.start();
 		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
@@ -342,6 +359,36 @@ public class Robot extends IterativeRobot {
 		syncSensors(); // TODO: disable this line for competition because it's mainly for testing
 	}
 	
+	// this stuff for the arduino status messages
+	boolean rear_vision = false, front_vision = false;
+	
+	void vision_r(boolean on) {
+		rear_vision = on;
+	}
+	void vision_f(boolean on) {
+		front_vision = on;
+	}
+	
+	void updateArduino() {
+		try {
+			if (arduinoTimer.get() > Settings.get("arduinotimer")) { // send periodically to avoid buffer overflows
+				byte mode1 = 0;  //////// structure: 0b<red><blue><fms><auton><teleop><disabled><enabled><attached>
+				if (ds.getAlliance() == DriverStation.Alliance.Red)  mode1 |= 0b10000000; // on the red alliance
+				if (ds.getAlliance() == DriverStation.Alliance.Blue) mode1 |= 0b01000000; // blue alliance 
+				if (ds.isAutonomous())                               mode1 |= 0b00100000; // auton mode
+				if (ds.isOperatorControl())                          mode1 |= 0b00010000; // teleop mode
+				if (front_vision)                                    mode1 |= 0b00001000; // disabled (idk what this actually means)
+				if (rear_vision)                                     mode1 |= 0b00000100; // enabled and running
+
+				byte[] mode2 = {mode1};
+				arduino.write(mode2,1); // send the byte of status over
+				
+				arduinoTimer.reset(); // reset the timer so we can 
+				arduinoTimer.start(); // probably don't need to do this
+			}
+		} catch (RuntimeException a) { }
+	}
+	
 	void syncSensors() {
 		try { // put data into table (probably disable this during comp)
 			SensorPanel.report("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
@@ -382,6 +429,7 @@ public class Robot extends IterativeRobot {
 		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pixels in which to aim at vision targets
 		Settings.add("geardetect", 1000, 0, 4096); // analog read form the IR sensor to tell when the gear is present
 		Settings.add("intakespeed", 1, 0, 1); // speed to run the intake motors
+		Settings.add("arduinotimer",100,10,500); // arduino timer to send data in milliseconds
 		// auto settings
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
