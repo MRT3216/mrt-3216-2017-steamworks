@@ -20,6 +20,8 @@ void setup() {
   frontpixels.begin();
   strippixels.begin();
   Serial.begin(115200);
+
+  pinMode(13,OUTPUT);
 }
 
 byte rainbow = 0;
@@ -30,7 +32,7 @@ byte add = 0;
 int pulse = 0;
 boolean pulsedir = false;
 
-boolean front_leds = false, rear_leds = false, enabled = false, auton = false, teleop = false, red = false, blue = false;
+byte front_leds = false, rear_leds = false, enabled = false, auton = false, teleop = false, red = false, blue = false;
 
 void loop() {
   if (Serial.available()) {
@@ -43,6 +45,7 @@ void loop() {
     red = c & 0b10000000;
     blue = c & 0b01000000;
     enabled = auton || teleop;
+    digitalWrite(13,HIGH);
   }
   if (lastread < millis() - 1000) { // lost comms
     front_leds = false;
@@ -52,6 +55,7 @@ void loop() {
     teleop = false;
     red = false;
     blue = false;
+    digitalWrite(13,LOW);
   }
   
   rainbow+=4; // this will automatically wrap around
@@ -91,7 +95,7 @@ void loop() {
     add++;
       if (add > 2) {
         add = 0;
-        pixels.setPixelColor(random(NUMPIXELS),wheel(random(0xff)));
+        strippixels.setPixelColor(random(NUMPIXELS_STRIPS),wheel(random(0xff)));
       }
     #endif
   }

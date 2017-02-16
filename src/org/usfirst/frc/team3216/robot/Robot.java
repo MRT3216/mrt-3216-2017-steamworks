@@ -27,6 +27,7 @@ public class Robot extends IterativeRobot {
 	MovingAverage front_avg, rear_avg; // smooth spikes in the rangefinders input by averaging the last several samples
 	SerialPort arduino;
 	Timer arduinoTimer;
+	Timer matchTimer;
 	
 	SendableChooser<Station> station; // chooser for where we're stationed
 	
@@ -61,8 +62,8 @@ public class Robot extends IterativeRobot {
 		imu = new ADIS16448_IMU(); // the fancy IMU that plugs into the MXP
 		
 		// sensor processing
-		front_avg = new MovingAverage(7,250); // moving average for rangefinder (samples, start value)
-		rear_avg = new MovingAverage(7,0); // moving average for rangefinder (samples, start value)
+		front_avg = new MovingAverage(3,0); // moving average for rangefinder (samples, start value)
+		rear_avg = new MovingAverage(3,0); // moving average for rangefinder (samples, start value)
 		
 		try {
 			arduino = new SerialPort(115200,SerialPort.Port.kUSB);
@@ -72,6 +73,7 @@ public class Robot extends IterativeRobot {
 		}
 		arduinoTimer = new Timer();
 		arduinoTimer.start();
+		matchTimer = new Timer();
 		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
@@ -103,6 +105,11 @@ public class Robot extends IterativeRobot {
 		// reset and recalibrate the IMU at the start of every match
 		imu.calibrate(); // this has delays in it so i hope it doesn't take too long
 		imu.reset(); // reset even though calibrate() probably already does that
+		
+		matchTimer.reset();
+		matchTimer.start();
+		rear_vision = -100;
+		front_vision = -100;
 	}
 
 	// This function is called periodically during autonomous
@@ -149,20 +156,15 @@ public class Robot extends IterativeRobot {
 			StateMachine.cancel("drive_fwd_3");
 			StateMachine.start("aim_high");  
 		}
-		if (StateMachine.isRunning("aim_high") && // rotate so we're aiming at the tower
-				true /* TODO: fix sensor here*/) { 
-			StateMachine.cancel("aim_high");
-			StateMachine.start("shoot");  
-		}
 		
 		// TODO: add the code in here to run motors, etc for auto stages
 		if (StateMachine.isRunning("drive_back_1")) { // drive backward
-			
+			drive(-Settings.get("autonspeed"),-Settings.get("autonspeed"));
 		} else if (StateMachine.isRunning("turn")) { // turn toward the lift
 			if (auto_station == Station.LEFT) { // turn to the right
-				
+				drive(Settings.get("autonturnspeed"),-Settings.get("autonturnspeed")); // switch direction by flipping minus signs
 			} else if (auto_station == Station.RIGHT) { // turn to the left
-				
+				drive(-Settings.get("autonturnspeed"),Settings.get("autonturnspeed"));
 			}
 		} else if (StateMachine.isRunning("drive_back_2")) { // drive back, targeting the lift with vision
 			placeGear(true);
@@ -170,12 +172,10 @@ public class Robot extends IterativeRobot {
 			placeGear(false);
 			// probably don't need to do anything here
 		} else if (StateMachine.isRunning("drive_fwd_3")) { // drive forward
-			
-		} else if (StateMachine.isRunning("aim_high")) { // aim based on the vision
-			aimLauncher();
-		} else if (StateMachine.isRunning("shoot")) { // shoot balls into the high goal
-			runLauncher(true);
-		}
+			drive(Settings.get("autonspeed"),Settings.get("autonspeed"));
+		} else if (StateMachine.isRunning("aim_high")) { // aim based on the vision (and shoot)
+			highGoal(true);
+		} 
 	}
 	
 	public void teleopInit() {
@@ -187,13 +187,14 @@ public class Robot extends IterativeRobot {
 	// the variables that have _in are from the joystick
 	double leftdrive_in, rightdrive_in;
 	boolean runintake_in,  runshooter_in,  rungear_in, reverse_in,  slow_in, straight_in;
+	boolean autogear_in, autoshoot_in, climb_in;
 	//boolean runlaunch_btn, runshooter_btn, rungear_btn, reverse_btn, slow_btn; // don't need separate vars for button panel (yet)
 	
 	boolean buttons_connected = false; // not used but possibly will be
 	// This function is called periodically during operator control
 	public void teleopPeriodic() {
-		leftdrive_in = xBox.getRawAxis(1); // these are supposed to be the vertical axes (for tank drive)
-		rightdrive_in = xBox.getRawAxis(5); // checked
+		leftdrive_in = xBox.getRawAxis(5); // these are supposed to be the vertical axes (for tank drive)
+		rightdrive_in = xBox.getRawAxis(1); // checked
 		
 		runintake_in = xBox.getRawButton(3); // X / blue
 		runshooter_in = xBox.getRawButton(2); // B / red
@@ -202,14 +203,21 @@ public class Robot extends IterativeRobot {
 		slow_in = xBox.getRawButton(9); // press left joystick
 		straight_in = xBox.getRawButton(10); // press right joystick
 		
-		try {
-			// button panel is in here so when we disconnect it, it doesn't throw errors
+		autogear_in = false; // these have no buttons on the joystick
+		autoshoot_in = false;
+		climb_in = false;
+		
+		try {// button panel is in here so when we disconnect it, it doesn't throw errors
 			runintake_in |= bpanel.getRawButton(1); // TODO: change these indexes
 			runshooter_in |= bpanel.getRawButton(2);
 			rungear_in |= bpanel.getRawButton(3);
-			reverse_in |= bpanel.getRawButton(4);
-			slow_in |= bpanel.getRawButton(5);
-			straight_in |= bpanel.getRawButton(6);
+			//reverse_in |= bpanel.getRawButton(4); // not on the button panel
+			//slow_in |= bpanel.getRawButton(5);
+			//straight_in |= bpanel.getRawButton(6);
+			
+			//autogear_in |= bpanel.getRawButton(4);
+			autoshoot_in |= bpanel.getRawButton(5);
+			climb_in |= bpanel.getRawButton(6);
 			
 			buttons_connected = true;
 		} catch (Exception e) { // this will throw errors if the button panel is not connected
@@ -234,6 +242,7 @@ public class Robot extends IterativeRobot {
 		}
 		
 		runLauncher(runshooter_in); // run launcher if buttons are pressed
+		highGoal(autoshoot_in); // auto aiming of the high goal shooter
 		
 		placeGear(rungear_in); // do the whole gear placement routine of the button is pressed
 		
@@ -263,6 +272,36 @@ public class Robot extends IterativeRobot {
 		}
 	}
 	
+	void highGoal(boolean on) { // full 
+		// need a state machine to handle the aiming and then driving
+		if (on) {
+			if (!StateMachine.isGroupRunning("boiler")) {
+				StateMachine.start("aim_boiler"); // start the first stage if not already running
+				vision_r();
+			}
+		} else { // as soon as the button is lifted, reset
+			StateMachine.resetGroup("boiler");
+		}
+		
+		if (StateMachine.isRunning("aim_boiler") && 
+				(Math.abs(boiler_angle) < Settings.get("visiondeadzone"))) {
+			StateMachine.cancel("aim_boiler");
+			StateMachine.start("drive_boiler");
+		} else if (StateMachine.isRunning("drive_boiler") && 
+				(true /* check the distance */)) {
+			StateMachine.cancel("drive_boiler");
+			StateMachine.start("shoot_boiler");
+		}
+		
+		if (StateMachine.isRunning("aim_boiler")) {
+			aimLauncher();
+		} else if (StateMachine.isRunning("drive_boiler")) {
+			driveLauncher();
+		} else if (StateMachine.isRunning("shoot_boiler")) {
+			runLauncher(true);
+		}
+	}
+	
 	double launcherspeed = 1; // this global value we set to the latest value written to the motors
 	
 	void runLauncher(boolean on) { // on is whether or not to run the shooter
@@ -275,32 +314,57 @@ public class Robot extends IterativeRobot {
 			} else {
 				launcherspeed += Utility.map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // speed it up
 			}
-			balllauncher.set(launcherspeed); // set the new value
+			balllauncher.set(-launcherspeed); // set the new value
 		} else {
 			balllauncher.set(0); // else, stop the motor
 		}
 	}
 	
+	double boiler_distance, boiler_angle;
+	
 	void aimLauncher() { // turn the robot to aim at the high goal
+		vision_f();
 		
+		double turn_speed = 0;
+		
+		if (boiler_angle > Settings.get("visiondeadzone")) {
+			turn_speed = Utility.map(Math.abs(boiler_angle),0,60,0.05,Settings.get("highaim-p"));
+		} else if (boiler_angle < -Settings.get("visiondeadzone")) {
+			turn_speed = -Utility.map(Math.abs(boiler_angle),0,60,0.05,Settings.get("highaim-p"));
+		}
+		
+		drive(turn_speed, -turn_speed);
+	}
+	
+	void driveLauncher() {
+		vision_f();
+		
+		double turn_speed = 0, drive_speed = 0;
+		
+		if (boiler_angle > Settings.get("visiondeadzone")) {
+			turn_speed = Utility.map(Math.abs(boiler_angle),0,60,0.05,Settings.get("gearaim-p"));
+		} else if (boiler_angle < -Settings.get("visiondeadzone")) {
+			turn_speed = -Utility.map(Math.abs(boiler_angle),0,60,0.05,Settings.get("gearaim-p"));
+		}
+		
+		drive_speed = Utility.map(Math.abs(Settings.get("idealboilerdist") - boiler_distance),0,Settings.get("maxboilerdist"),0.1,Settings.get("autodrivespd"));
+		
+		drive(drive_speed+turn_speed, drive_speed-turn_speed);
 	}
 	
 	void placeGear(boolean on) { // drive backward to place the gear while aiming
 		// need a state machine to handle the aiming and then driving
 		if (on) {
 			if (!StateMachine.isGroupRunning("gear")) {
-				StateMachine.start("center_gear"); // start the first stage if not already running
+				StateMachine.start("aim_gear"); // start the first stage if not already running
+				vision_r();
 			}
 		} else { // as soon as the button is lifted, reset
 			StateMachine.resetGroup("gear");
 		}
 		
-		if (StateMachine.isRunning("center_gear") && 
-				(true /* check the center */)) {
-			StateMachine.cancel("center_gear");
-			StateMachine.start("aim_gear");
-		} else if (StateMachine.isRunning("aim_gear") && 
-				(true /* check the vision deadzone */)) {
+		if (StateMachine.isRunning("aim_gear") && 
+				(Math.abs(lift_angle) < Settings.get("visiondeadzone"))) {
 			StateMachine.cancel("aim_gear");
 			StateMachine.start("drive_gear");
 		} else if (StateMachine.isRunning("drive_gear") && 
@@ -309,25 +373,48 @@ public class Robot extends IterativeRobot {
 			StateMachine.start("pause_gear");
 		}
 		
-		if (StateMachine.isRunning("center_gear")) {
-			centerGear();
-		} else if (StateMachine.isRunning("aim_gear")) {
+		if (StateMachine.isRunning("aim_gear")) {
 			aimGear();
 		} else if (StateMachine.isRunning("drive_gear")) {
-			
+			driveGear();
 		} else if (StateMachine.isRunning("pause_gear")) {
 			// probably do nothing
 		}
 		
 	}
 	
-	void aimGear() { // move the gear cradle based on vision input
+	double lift_distance, lift_angle;
+	
+	void aimGear() { // rotate the robot based on vision input
+		vision_r();
 		
+		double turn_speed = 0;
+		
+		if (lift_angle > Settings.get("visiondeadzone")) {
+			turn_speed = Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
+		} else if (lift_angle < -Settings.get("visiondeadzone")) {
+			turn_speed = -Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
+		}
+		
+		drive(turn_speed, -turn_speed);
 	}
 	
-	void centerGear() { // center the gear cradle so that we can use vision
+	void driveGear() { // drive forward slowly while aiming
+		vision_r();
 		
+		double turn_speed = 0, drive_speed = 0;
+		
+		if (lift_angle > Settings.get("visiondeadzone")) {
+			turn_speed = Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
+		} else if (lift_angle < -Settings.get("visiondeadzone")) {
+			turn_speed = -Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
+		}
+		
+		drive_speed = Utility.map(Math.abs(lift_distance),0,Settings.get("maxgeardist"),0.1,Settings.get("autodrivespd"));
+		
+		drive(drive_speed+turn_speed, drive_speed-turn_speed);
 	}
+	
 	
 	void intake(boolean on) { // just run the motors to lift fuel off the ground
 		if (on) {
@@ -357,16 +444,18 @@ public class Robot extends IterativeRobot {
 		Settings.sync(); // this syncs local settings with the NetworkTable and the DS config utility
 		
 		syncSensors(); // TODO: disable this line for competition because it's mainly for testing
+		
+		updateArduino();
 	}
 	
 	// this stuff for the arduino status messages
-	boolean rear_vision = false, front_vision = false;
+	double rear_vision = -100, front_vision = -100;
 	
-	void vision_r(boolean on) {
-		rear_vision = on;
+	void vision_r() { // set a timer to turn on the vision lights
+		rear_vision = matchTimer.get();
 	}
-	void vision_f(boolean on) {
-		front_vision = on;
+	void vision_f() {
+		front_vision = matchTimer.get();
 	}
 	
 	void updateArduino() {
@@ -377,8 +466,8 @@ public class Robot extends IterativeRobot {
 				if (ds.getAlliance() == DriverStation.Alliance.Blue) mode1 |= 0b01000000; // blue alliance 
 				if (ds.isAutonomous())                               mode1 |= 0b00100000; // auton mode
 				if (ds.isOperatorControl())                          mode1 |= 0b00010000; // teleop mode
-				if (front_vision)                                    mode1 |= 0b00001000; // disabled (idk what this actually means)
-				if (rear_vision)                                     mode1 |= 0b00000100; // enabled and running
+				if (front_vision + 0.5 > matchTimer.get())           mode1 |= 0b00001000; // enable front vision leds
+				if (rear_vision + 0.5 > matchTimer.get())            mode1 |= 0b00000100; // enable rear vision leds
 
 				byte[] mode2 = {mode1};
 				arduino.write(mode2,1); // send the byte of status over
@@ -390,6 +479,11 @@ public class Robot extends IterativeRobot {
 	}
 	
 	void syncSensors() {
+		lift_distance = lifttracker.getNumber("distanceFromTarget",0); // get the vision things
+		lift_angle = lifttracker.getNumber("angleFromGoal",0);
+		boiler_distance = boilertracker.getNumber("distanceFromTarget",0);
+		boiler_angle = boilertracker.getNumber("angleFromGoal",0);
+		
 		try { // put data into table (probably disable this during comp)
 			SensorPanel.report("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
 			SensorPanel.report("range_f",front_avg.getLatest()); // averaged rangefinder value
@@ -405,6 +499,10 @@ public class Robot extends IterativeRobot {
 			SensorPanel.report("imu_y",imu.getYaw());
 			SensorPanel.report("cradle_p",cradle_prox.getValue());
 			SensorPanel.report("enc_r",launcherencoder.getRate() * 60);
+			SensorPanel.report("vis_bd",boiler_distance);
+			SensorPanel.report("vis_ba",boiler_angle);
+			SensorPanel.report("vis_ld",lift_distance);
+			SensorPanel.report("vis_la",lift_angle);
 			// do these last so if they fail, the rest still runs
 			SensorPanel.report("pwr_c",pdp.getTotalCurrent()); // total current draw
 			SensorPanel.report("pwr_v",pdp.getVoltage()); // PDP voltage (not the same as DS voltage)
@@ -423,13 +521,21 @@ public class Robot extends IterativeRobot {
 		Settings.add("motorproportion", 0.7, 0, 1); // motor proprortional slow factor
 		Settings.add("slow", 0.7,0,1); // multiplier for when we hit the slow down button
 		Settings.add("marginoferror", 10, 0, 150); // margin of error for the MovingAverage class when we call getLatest()
-		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the  launcher at while it is shooting
+		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
 		Settings.add("launcher-p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
-		Settings.add("visiondeadzone", 20, 1, 100); // deadzone in pixels in which to aim at vision targets
-		Settings.add("geardetect", 1000, 0, 4096); // analog read form the IR sensor to tell when the gear is present
+		Settings.add("visiondeadzone", 4, 0, 90); // deadzone in degrees in which to aim at vision targets
+		Settings.add("geardetect", 1000, 0, 4096); // analog read from the IR sensor to tell when the gear is present
 		Settings.add("intakespeed", 1, 0, 1); // speed to run the intake motors
-		Settings.add("arduinotimer",100,10,500); // arduino timer to send data in milliseconds
+		Settings.add("arduinotimer",0.1,0.01,1); // arduino timer to send data in milliseconds
+		Settings.add("gearaim-p", 0.2, 0, 1); // proportion for aiming the gear
+		Settings.add("highaim-p", 0.2, 0, 1); // proportion for aiming the boiler goal
+		Settings.add("autodrivespd", 0.4, 0, 1); // speed to drive at when automatically aiming
+		Settings.add("idealboilerdist", 300, 0, 1000); // distance to boiler for auto aiming
+		Settings.add("maxboilerdst", 300, 0, 1000);
+		Settings.add("maxgeardist", 100, 0, 1000);
+		Settings.add("boilerdst", 300, 0, 1000); // arbitrary units so drive from the boiler when shooting
+		Settings.add("boilerdz", 3, 0, 40); // deadzone
 		// auto settings
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
@@ -458,6 +564,10 @@ public class Robot extends IterativeRobot {
 		SensorPanel.add("imu_y", "Yaw", SensorPanel.Type.NUMBER, 0, 1, "deg");
 		SensorPanel.add("cradle_p", "Cradle Proximity", SensorPanel.Type.BAR, 0, 4096, "");
 		SensorPanel.add("enc_r", "Launcher encoder", SensorPanel.Type.NUMBER, 0, 1, "rpm");
+		SensorPanel.add("vis_bd", "Boiler Distance", SensorPanel.Type.BAR, 0, 400, "in");
+		SensorPanel.add("vis_ba", "Boiler Angle", SensorPanel.Type.BAR, 0, 400, "in");
+		SensorPanel.add("vis_ld", "Lift Distance", SensorPanel.Type.CENTER, -90, 90, "deg");
+		SensorPanel.add("vis_la", "List Angle", SensorPanel.Type.CENTER, -90, 90, "deg");
 		//SensorPanel.add("", "", SensorPanel.Type.BAR, 0, 1, "");
 		
 		// lay out the auton state machines (stages)
@@ -467,14 +577,18 @@ public class Robot extends IterativeRobot {
 		StateMachine.add("drive_back_2"); // drive again up to the peg (with vision)
 		StateMachine.add("wait_gear"); // wait until the gear is lifted
 		StateMachine.add("drive_fwd_3"); // drive up to the point where we can shoot
-		StateMachine.add("aim_high"); // aim for the high goal with vision
-		StateMachine.add("shoot"); // shoot as many balls as possible
+		StateMachine.add("aim_high"); // aim for the high goal with vision and then shoot
+		//StateMachine.add("shoot"); // shoot as many balls as possible
 		
 		// statemachines to handle the gear placing 
-		StateMachine.add("center_gear","gear"); // center the gear cradle first
 		StateMachine.add("aim_gear","gear"); // turn so the vision targets are in the middle of the FOV
 		StateMachine.add("drive_gear","gear"); // drive until the robot gets to the lift
 		StateMachine.add("pause_gear","gear"); // wait (don't start another aiming run)
+		
+		//statemachines to control automatic shooting
+		StateMachine.add("aim_boiler","boiler");
+		StateMachine.add("drive_boiler","boiler");
+		StateMachine.add("shoot_boiler","boiler");
 		
 		// set up auton chooser
 		station = new SendableChooser<Station>(); // pretty simple to choose mode
