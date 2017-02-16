@@ -157,14 +157,13 @@ public class Robot extends IterativeRobot {
 			StateMachine.start("aim_high");  
 		}
 		
-		// TODO: add the code in here to run motors, etc for auto stages
 		if (StateMachine.isRunning("drive_back_1")) { // drive backward
-			drive(-Settings.get("autonspeed"),-Settings.get("autonspeed"));
+			drive(-Settings.get("autonspeed"),-Settings.get("autonspeed")); // TODO: switch if backwards
 		} else if (StateMachine.isRunning("turn")) { // turn toward the lift
 			if (auto_station == Station.LEFT) { // turn to the right
-				drive(Settings.get("autonturnspeed"),-Settings.get("autonturnspeed")); // switch direction by flipping minus signs
+				drive(Settings.get("autonturnspeed"),-Settings.get("autonturnspeed")); // TODO: switch if backwards
 			} else if (auto_station == Station.RIGHT) { // turn to the left
-				drive(-Settings.get("autonturnspeed"),Settings.get("autonturnspeed"));
+				drive(-Settings.get("autonturnspeed"),Settings.get("autonturnspeed")); // TODO: switch if backwards
 			}
 		} else if (StateMachine.isRunning("drive_back_2")) { // drive back, targeting the lift with vision
 			placeGear(true);
@@ -172,7 +171,7 @@ public class Robot extends IterativeRobot {
 			placeGear(false);
 			// probably don't need to do anything here
 		} else if (StateMachine.isRunning("drive_fwd_3")) { // drive forward
-			drive(Settings.get("autonspeed"),Settings.get("autonspeed"));
+			drive(Settings.get("autonspeed"),Settings.get("autonspeed")); // TODO: switch if backwards
 		} else if (StateMachine.isRunning("aim_high")) { // aim based on the vision (and shoot)
 			highGoal(true);
 		} 
@@ -333,7 +332,7 @@ public class Robot extends IterativeRobot {
 			turn_speed = -Utility.map(Math.abs(boiler_angle),0,60,0.05,Settings.get("highaim-p"));
 		}
 		
-		drive(turn_speed, -turn_speed);
+		drive(turn_speed, -turn_speed); // TODO: switch if backwards
 	}
 	
 	void driveLauncher() {
@@ -349,7 +348,7 @@ public class Robot extends IterativeRobot {
 		
 		drive_speed = Utility.map(Math.abs(Settings.get("idealboilerdist") - boiler_distance),0,Settings.get("maxboilerdist"),0.1,Settings.get("autodrivespd"));
 		
-		drive(drive_speed+turn_speed, drive_speed-turn_speed);
+		drive(drive_speed+turn_speed, drive_speed-turn_speed); // TODO: switch if backwards
 	}
 	
 	void placeGear(boolean on) { // drive backward to place the gear while aiming
@@ -396,7 +395,7 @@ public class Robot extends IterativeRobot {
 			turn_speed = -Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
 		}
 		
-		drive(turn_speed, -turn_speed);
+		drive(-turn_speed, turn_speed); // TODO: switch if backwards
 	}
 	
 	void driveGear() { // drive forward slowly while aiming
@@ -412,7 +411,7 @@ public class Robot extends IterativeRobot {
 		
 		drive_speed = Utility.map(Math.abs(lift_distance),0,Settings.get("maxgeardist"),0.1,Settings.get("autodrivespd"));
 		
-		drive(drive_speed+turn_speed, drive_speed-turn_speed);
+		drive(-drive_speed-turn_speed, -drive_speed+turn_speed); // TODO: switch if backwards
 	}
 	
 	
