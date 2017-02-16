@@ -3,6 +3,8 @@ package org.usfirst.frc.team3216.robot;
 import edu.wpi.first.wpilibj.*;
 import edu.wpi.first.wpilibj.networktables.NetworkTable;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
 import org.usfirst.frc.team3216.robot.Utility.*;
 
 public class Robot extends IterativeRobot {
@@ -79,7 +81,7 @@ public class Robot extends IterativeRobot {
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
 		
 		lifttracker = NetworkTable.getTable("LiftTracker");
-		boilertracker = NetworkTable.getTable("TowerTracker");
+		boilertracker = NetworkTable.getTable("BoilerTracker");
 	}
 	
 	Alliance auto_alliance = Alliance.RED; // defaults to red alliance here if the communication errors or something
@@ -595,6 +597,6 @@ public class Robot extends IterativeRobot {
 		station.addObject("Left station", Station.LEFT); // we prefer to be on the side of the high goal so we can shoot
 		station.addObject("Right station", Station.RIGHT); // however we want all options to be open
 		station.addObject("Do Nothing", Station.HALT); // of we want, we can just cross the base line and stop
+		SmartDashboard.putData("Choose Auton Starting Position",station);
 	}
 }
-
