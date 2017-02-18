@@ -28,7 +28,7 @@ class ScrollBar {
     stroke(255,255,0);
     line(computed,y,computed,y+h);
     fill(255,0,0);
-    text(min+"-"+max+" ~~ "+name+" ~ "+val,x+10,y+12);
+    text(min+"-"+max+" ~~ "+name+" ~ "+val,x+10,y+10);
   }
   
   float getVal() {

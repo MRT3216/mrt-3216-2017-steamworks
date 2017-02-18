@@ -19,7 +19,7 @@ public class Robot extends IterativeRobot {
 	VictorSP leftdrive,rightdrive; // y-cable these outputs to the two speed controllers (2 motors per side)
 	VictorSP balllauncher; // motor for launching the balls
 	Spark balllift; // two BAG motors running the intake
-	Talon agitator, feeder;
+	Talon agitator, indexer;
 	
 	AnalogInput range_front, range_rear; // two different rangefinders
 	Counter launcherencoder; // detects rate at which launcher spins
@@ -30,6 +30,7 @@ public class Robot extends IterativeRobot {
 	SerialPort arduino;
 	Timer arduinoTimer;
 	Timer matchTimer;
+	Timer indexerTimer;
 	
 	SendableChooser<Station> station; // chooser for where we're stationed
 	
@@ -53,7 +54,7 @@ public class Robot extends IterativeRobot {
 		balllauncher = new VictorSP(2); // flywheel to launch fuel = pwm 2
 		balllift = new Spark(3);
 		agitator = new Talon(4);
-		feeder = new Talon(5);
+		indexer = new Talon(5);
 		
 		// sensors
 		range_front = new AnalogInput(0); // analog rangefinder on the front
@@ -76,6 +77,7 @@ public class Robot extends IterativeRobot {
 		arduinoTimer = new Timer();
 		arduinoTimer.start();
 		matchTimer = new Timer();
+		indexerTimer = new Timer();
 		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
@@ -139,6 +141,7 @@ public class Robot extends IterativeRobot {
 			StateMachine.start("drive_back_2");
 		}
 		if (StateMachine.isRunning("drive_back_2") &&
+				
 				rear_avg.getLatest() < Settings.get("liftdist")) { // use the rear rangefinder when driving backwards to see the lift
 			StateMachine.cancel("drive_back_2");
 			StateMachine.start("wait_gear"); // wait for the user to lift the gear 
@@ -316,8 +319,40 @@ public class Robot extends IterativeRobot {
 				launcherspeed += Utility.map(Math.abs(rate - idealrate),0,5000,0,Settings.get("launcher-p")); // speed it up
 			}
 			balllauncher.set(-launcherspeed); // set the new value
+			
+			agitator.set(Settings.get("agitatorspeed"));
+			
+			if (!StateMachine.isGroupRunning("indexer")) {
+				StateMachine.start("indexer_off");
+				indexerTimer.reset();
+				indexerTimer.start();
+			}
+			
+			if (StateMachine.isRunning("indexer_off") && indexerTimer.get() > Settings.get("indexerofftime")) {
+				StateMachine.cancel("indexer_off");
+				StateMachine.start("indexer_on");
+				indexerTimer.reset();
+				indexerTimer.start();
+			}
+			if (StateMachine.isRunning("indexer_on") && indexerTimer.get() > Settings.get("indexerontime")) {
+				StateMachine.cancel("indexer_on");
+				StateMachine.start("indexer_off");
+				indexerTimer.reset();
+				indexerTimer.start();
+			}
+			
+			if (StateMachine.isRunning("indexer_off")) {
+				indexer.set(0);
+			}
+			if (StateMachine.isRunning("indexer_on")) {
+				indexer.set(Settings.get("indexerspeed"));
+			}
 		} else {
 			balllauncher.set(0); // else, stop the motor
+			indexer.set(0);
+			agitator.set(0);
+			StateMachine.resetGroup("indexer");
+			indexerTimer.stop();
 		}
 	}
 	
@@ -536,7 +571,11 @@ public class Robot extends IterativeRobot {
 		Settings.add("maxboilerdst", 300, 0, 1000);
 		Settings.add("maxgeardist", 100, 0, 1000);
 		Settings.add("boilerdst", 300, 0, 1000); // arbitrary units so drive from the boiler when shooting
-		Settings.add("boilerdz", 3, 0, 40); // deadzone
+		Settings.add("boilerdz", 3, 0, 40); // deadzone for the boiler distance
+		Settings.add("indexerofftime", 0.4, 0.1, 3); // seconds to stop the indexer
+		Settings.add("indexerontime", 0.04, 0, 0.5); // seconds to run the indexer
+		Settings.add("indexerspeed", 0.7, 0, 1); // speed to run indexer motor
+		Settings.add("agitatiorspeed", 0.9, 0, 1); // speed to run the agitator motor
 		// auto settings
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
@@ -590,6 +629,9 @@ public class Robot extends IterativeRobot {
 		StateMachine.add("aim_boiler","boiler");
 		StateMachine.add("drive_boiler","boiler");
 		StateMachine.add("shoot_boiler","boiler");
+		
+		StateMachine.add("indexer_on","indexer");
+		StateMachine.add("indexer_off","indexer");
 		
 		// set up auton chooser
 		station = new SendableChooser<Station>(); // pretty simple to choose mode

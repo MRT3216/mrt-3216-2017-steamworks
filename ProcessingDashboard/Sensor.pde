@@ -43,11 +43,11 @@ class Sensor {
       case 2: // one-way scrollbar
       case 5:
         fill(255,0,0);
-        rect(this.x,this.y,map((float)this.value,(float)this.min,(float)this.max,1,400),23);
+        rect(this.x,this.y,map((float)this.value,(float)this.min,(float)this.max,1,400),15);
       break;
       case 3: // two-way scrollbar
         fill(255,0,0);
-        rect(this.x + 200,this.y,map((float)this.value,(float)this.min,(float)this.max,-200,200),23);
+        rect(this.x + 200,this.y,map((float)this.value,(float)this.min,(float)this.max,-200,200),15);
       break;
     }
     

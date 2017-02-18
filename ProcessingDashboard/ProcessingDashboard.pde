@@ -106,7 +106,7 @@ void initset() { // initiate settings
     if (k.endsWith("_val")) {
       String[] j = k.split("[_]");
       settings.add(new Setting(j[0],620,yv));
-      yv += 25;
+      yv += 17;
     }
   }
 }
@@ -121,7 +121,7 @@ void initsens() { // initiate sensors
         String[] j = k.split("[-]");
         String[] l = j[0].split("[.]");
         int yv = Integer.parseInt(l[0]);
-        sensors.add(new Sensor(j[0],5,yv*20));
+        sensors.add(new Sensor(j[0],5,yv*16));
         //yv += 20;
       }
     } catch (Exception e) { }
