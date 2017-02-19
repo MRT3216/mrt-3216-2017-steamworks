@@ -203,7 +203,8 @@ public class Robot extends IterativeRobot {
 		runintake_in = xBox.getRawButton(3); // X / blue
 		runshooter_in = xBox.getRawButton(2); // B / red
 		rungear_in = xBox.getRawButton(4); // Y / yellow
-		reverse_in = xBox.getRawButton(5); // left trigger (toggle)
+		reverse_in = xBox.getRawButton(5); // left bumper (toggle)
+		boost_in = xBox.getRawButton(6); // right bumper
 		slow_in = xBox.getRawButton(9); // press left joystick
 		straight_in = xBox.getRawButton(10); // press right joystick
 		
