@@ -57,10 +57,7 @@ void loop() {
     blue = false;
     digitalWrite(13,LOW);
   }
-
-  front_leds = true;
-  rear_leds = true;
-  
+    
   rainbow+=4; // this will automatically wrap around
   spin++;
   spin %= NUMPIXELS_RING;

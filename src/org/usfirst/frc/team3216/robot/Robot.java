@@ -190,7 +190,7 @@ public class Robot extends IterativeRobot {
 	// variables used in teleop:
 	// the variables that have _in are from the joystick
 	double leftdrive_in, rightdrive_in;
-	boolean runintake_in,  runshooter_in,  rungear_in, reverse_in,  slow_in, straight_in;
+	boolean runintake_in,  runshooter_in,  rungear_in, reverse_in,  slow_in, straight_in, boost_in;
 	boolean autogear_in, autoshoot_in, climb_in;
 	//boolean runlaunch_btn, runshooter_btn, rungear_btn, reverse_btn, slow_btn; // don't need separate vars for button panel (yet)
 	
@@ -215,7 +215,7 @@ public class Robot extends IterativeRobot {
 			runintake_in |= bpanel.getRawButton(1); // TODO: change these indexes
 			runshooter_in |= bpanel.getRawButton(2);
 			rungear_in |= bpanel.getRawButton(3);
-			//reverse_in |= bpanel.getRawButton(4); // not on the button panel
+			reverse_in |= bpanel.getRawButton(4); // not on the button panel
 			//slow_in |= bpanel.getRawButton(5);
 			//straight_in |= bpanel.getRawButton(6);
 			
@@ -239,10 +239,14 @@ public class Robot extends IterativeRobot {
 			leftdrive_in = leftdrive_in * Settings.get("slow");
 		}
 		
-		if (reverse.get()) { // we can drive backwards
-			drive(-rightdrive_in, -leftdrive_in); // drive backward
+		double mult = Settings.get("motorproportion");
+		
+		if (boost_in) mult = 1; // full speed!
+		
+		if (reverse_in) { // we can drive backwards
+			drive(-rightdrive_in, -leftdrive_in, mult); // drive backward
 		} else {
-			drive(leftdrive_in, rightdrive_in); // drive function
+			drive(leftdrive_in, rightdrive_in, mult); // drive function
 		}
 		
 		runLauncher(runshooter_in); // run launcher if buttons are pressed
@@ -260,17 +264,21 @@ public class Robot extends IterativeRobot {
 	
 	//////////////////////////////// various management functions
 	
-	void drive(double left, double right) { // tank drive
+	void drive(double left, double right) {
+		drive(left,right,Settings.get("motorproportion"));
+	}
+	
+	void drive(double left, double right, double multiplier) { // tank drive
 		right = -right;
 		
 		if (Math.abs(left) > Settings.get("deadzone")) { // deadzone the motors
-			leftdrive.set((Math.pow(left,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * left) * Settings.get("motorproportion")); // cubic motor map
+			leftdrive.set((Math.pow(left,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * left) * (multiplier + Settings.get("motordisparity"))); // cubic motor map
 		} else {
 			leftdrive.set(0); // else stop it
 		}
 		
 		if (Math.abs(right) > Settings.get("deadzone")) { // deadzone
-			rightdrive.set((Math.pow(right,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * right) * Settings.get("motorproportion"));
+			rightdrive.set((Math.pow(right,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * right) * (multiplier - Settings.get("motordisparity")));
 		} else {
 			rightdrive.set(0); // else stop it
 		}
@@ -320,9 +328,9 @@ public class Robot extends IterativeRobot {
 			}
 			balllauncher.set(-launcherspeed); // set the new value
 			
-			agitator.set(Settings.get("agitatorspeed"));
+			agitator.set(-Settings.get("agitatorspeed"));
 			
-			if (!StateMachine.isGroupRunning("indexer")) {
+			/*if (!StateMachine.isGroupRunning("indexer")) {
 				StateMachine.start("indexer_off");
 				indexerTimer.reset();
 				indexerTimer.start();
@@ -346,7 +354,9 @@ public class Robot extends IterativeRobot {
 			}
 			if (StateMachine.isRunning("indexer_on")) {
 				indexer.set(Settings.get("indexerspeed"));
-			}
+			}*/
+			
+			indexer.set(-Settings.get("indexerspeed"));
 		} else {
 			balllauncher.set(0); // else, stop the motor
 			indexer.set(0);
@@ -391,6 +401,7 @@ public class Robot extends IterativeRobot {
 	void placeGear(boolean on) { // drive backward to place the gear while aiming
 		// need a state machine to handle the aiming and then driving
 		if (on) {
+			vision_r();
 			if (!StateMachine.isGroupRunning("gear")) {
 				StateMachine.start("aim_gear"); // start the first stage if not already running
 				vision_r();
@@ -557,7 +568,7 @@ public class Robot extends IterativeRobot {
 		Settings.add("motorproportion", 0.7, 0, 1); // motor proprortional slow factor
 		Settings.add("slow", 0.7,0,1); // multiplier for when we hit the slow down button
 		Settings.add("marginoferror", 10, 0, 150); // margin of error for the MovingAverage class when we call getLatest()
-		Settings.add("launcherrpm", 3000, 0, 6000); // rpm to keep the launcher at while it is shooting
+		Settings.add("launcherrpm", 3000, 3000, 4500); // rpm to keep the launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
 		Settings.add("launcher-p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
 		Settings.add("visiondeadzone", 4, 0, 90); // deadzone in degrees in which to aim at vision targets
@@ -575,7 +586,8 @@ public class Robot extends IterativeRobot {
 		Settings.add("indexerofftime", 0.4, 0.1, 3); // seconds to stop the indexer
 		Settings.add("indexerontime", 0.04, 0, 0.5); // seconds to run the indexer
 		Settings.add("indexerspeed", 0.7, 0, 1); // speed to run indexer motor
-		Settings.add("agitatiorspeed", 0.9, 0, 1); // speed to run the agitator motor
+		Settings.add("agitatorspeed", 0.9, 0, 1); // speed to run the agitator motor
+		Settings.add("motordisparity", 0.1, -0.5, 0.5); // number to use when correcting the disparity in traction on the tank drive
 		// auto settings
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
