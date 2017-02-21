@@ -78,6 +78,7 @@ public class Robot extends IterativeRobot {
 		arduinoTimer.start();
 		matchTimer = new Timer();
 		indexerTimer = new Timer();
+		matchTimer.start();
 		
 		// post-init
 		launcherencoder.setDistancePerPulse(1/20.0); // the encoder has 20 pulses per revolution
@@ -114,11 +115,11 @@ public class Robot extends IterativeRobot {
 		matchTimer.start();
 		rear_vision = -100;
 		front_vision = -100;
+		
 	}
 
 	// This function is called periodically during autonomous
 	public void autonomousPeriodic() {
-		//Necessary Comment. Auton breaks without this comment :)
 		// first, we check the different triggers to advance the auton routine
 		if (StateMachine.check("initial_delay")) { // once finished sleeping
 			StateMachine.cancel("initial_delay");
@@ -129,21 +130,21 @@ public class Robot extends IterativeRobot {
 			}
 		}
 		if (StateMachine.isRunning("drive_back_1") && // first drive stage
-				front_avg.getLatest() > Settings.get("autondist1")) { // use the front rangefinder when driving backwards to see the back wall
+				front_avg.getAverage() > Settings.get("autondist1")) { // use the front rangefinder when driving backwards to see the back wall
 			StateMachine.cancel("drive_back_1"); // StateMachine makes my life so much easier compared to last year
 			if (auto_station != Station.HALT) { // if we select Halt, just stop here after crossing the baseline (though why we would makes no sense)
 				StateMachine.start("turn"); // then turn 
 			}
 		}
 		if (StateMachine.isRunning("turn") && (
-				(auto_station == Station.LEFT && imu.getAngle() > Settings.get("autonangle")) || // if it turns the wrong way, flip LEFT and RIGHT
-				(auto_station == Station.RIGHT && imu.getAngle() < -Settings.get("autonangle")))) { // so many booleans
+				(auto_station == Station.LEFT && imu.getAngleZ() > Settings.get("autonangle")) || // if it turns the wrong way, flip LEFT and RIGHT
+				(auto_station == Station.RIGHT && imu.getAngleZ() < -Settings.get("autonangle")))) { // so many booleans
 			StateMachine.cancel("turn");
 			StateMachine.start("drive_back_2");
 		}
 		if (StateMachine.isRunning("drive_back_2") &&
 				
-				rear_avg.getLatest() < Settings.get("liftdist")) { // use the rear rangefinder when driving backwards to see the lift
+				rear_avg.getAverage() < Settings.get("liftdist")) { // use the rear rangefinder when driving backwards to see the lift
 			StateMachine.cancel("drive_back_2");
 			StateMachine.start("wait_gear"); // wait for the user to lift the gear 
 		}
@@ -158,28 +159,34 @@ public class Robot extends IterativeRobot {
 			}
 		}
 		if (StateMachine.isRunning("drive_fwd_3") && // drive
-				rear_avg.getLatest() > Settings.get("autondist2")) { 
+				rear_avg.getAverage() > Settings.get("autondist2")) { 
 			StateMachine.cancel("drive_fwd_3");
 			StateMachine.start("aim_high");  
 		}
 		
 		if (StateMachine.isRunning("drive_back_1")) { // drive backward
-			drive(-Settings.get("autonspeed"),-Settings.get("autonspeed")); // TODO: switch if backwards
+			drive(Settings.get("autonspeed"),Settings.get("autonspeed")); // TODO: switch if backwards
+			System.out.println("drive back 1");
 		} else if (StateMachine.isRunning("turn")) { // turn toward the lift
 			if (auto_station == Station.LEFT) { // turn to the right
 				drive(Settings.get("autonturnspeed"),-Settings.get("autonturnspeed")); // TODO: switch if backwards
 			} else if (auto_station == Station.RIGHT) { // turn to the left
 				drive(-Settings.get("autonturnspeed"),Settings.get("autonturnspeed")); // TODO: switch if backwards
 			}
+			System.out.println("turning");
 		} else if (StateMachine.isRunning("drive_back_2")) { // drive back, targeting the lift with vision
 			placeGear(true);
+			System.out.println("drive back 2");
 		} else if (StateMachine.isRunning("wait_gear")) { // wait for the gear to be lifted
 			placeGear(false);
+			System.out.println("wait for gear");
 			// probably don't need to do anything here
 		} else if (StateMachine.isRunning("drive_fwd_3")) { // drive forward
-			drive(Settings.get("autonspeed"),Settings.get("autonspeed")); // TODO: switch if backwards
+			drive(-Settings.get("autonspeed"),-Settings.get("autonspeed")); // TODO: switch if backwards
+			System.out.println("drive fwd 1");
 		} else if (StateMachine.isRunning("aim_high")) { // aim based on the vision (and shoot)
 			highGoal(true);
+			System.out.println("shoot");
 		} 
 	}
 	
@@ -192,7 +199,7 @@ public class Robot extends IterativeRobot {
 	// the variables that have _in are from the joystick
 	double leftdrive_in, rightdrive_in;
 	boolean runintake_in,  runshooter_in,  rungear_in, reverse_in,  slow_in, straight_in, boost_in;
-	boolean autogear_in, autoshoot_in, climb_in;
+	boolean autogear_in, autoshoot_in, climb_in, revclimb_in;
 	//boolean runlaunch_btn, runshooter_btn, rungear_btn, reverse_btn, slow_btn; // don't need separate vars for button panel (yet)
 	
 	boolean buttons_connected = false; // not used but possibly will be
@@ -202,9 +209,9 @@ public class Robot extends IterativeRobot {
 		rightdrive_in = xBox.getRawAxis(1); // checked
 		
 		runintake_in = xBox.getRawButton(3); // X / blue
-		runshooter_in = xBox.getRawButton(2); // B / red
+		runshooter_in = xBox.getRawButton(5); // B / red
 		rungear_in = xBox.getRawButton(4); // Y / yellow
-		reverse_in = xBox.getRawButton(5); // left bumper (toggle)
+		reverse_in = xBox.getRawButton(2); // left bumper (toggle)
 		boost_in = xBox.getRawButton(6); // right bumper
 		slow_in = xBox.getRawButton(9); // press left joystick
 		straight_in = xBox.getRawButton(10); // press right joystick
@@ -222,7 +229,8 @@ public class Robot extends IterativeRobot {
 			//straight_in |= bpanel.getRawButton(6);
 			
 			//autogear_in |= bpanel.getRawButton(4);
-			autoshoot_in |= bpanel.getRawButton(5);
+			//autoshoot_in |= bpanel.getRawButton(5);
+			revclimb_in = bpanel.getRawButton(5);
 			climb_in |= bpanel.getRawButton(6);
 			
 			buttons_connected = true;
@@ -257,6 +265,9 @@ public class Robot extends IterativeRobot {
 		placeGear(rungear_in); // do the whole gear placement routine of the button is pressed
 		
 		intake(runintake_in); // run the intake motor if button is pressed
+		
+		if (climb_in) indexer.set(-1);
+		if (revclimb_in) indexer.set(1);
 	}
 	
 	/* the following useful functions:
@@ -330,7 +341,7 @@ public class Robot extends IterativeRobot {
 			}
 			balllauncher.set(-launcherspeed); // set the new value
 			
-			agitator.set(-Settings.get("agitatorspeed"));
+			agitator.set(Settings.get("agitatorspeed"));
 			
 			/*if (!StateMachine.isGroupRunning("indexer")) {
 				StateMachine.start("indexer_off");
@@ -358,7 +369,7 @@ public class Robot extends IterativeRobot {
 				indexer.set(Settings.get("indexerspeed"));
 			}*/
 			
-			indexer.set(-Settings.get("indexerspeed"));
+			//indexer.set(-Settings.get("indexerspeed"));
 		} else {
 			balllauncher.set(0); // else, stop the motor
 			indexer.set(0);
@@ -417,7 +428,7 @@ public class Robot extends IterativeRobot {
 			StateMachine.cancel("aim_gear");
 			StateMachine.start("drive_gear");
 		} else if (StateMachine.isRunning("drive_gear") && 
-				rear_avg.getLatest() < Settings.get("liftdist")) {
+				rear_avg.getAverage() < Settings.get("liftdist")) {
 			StateMachine.cancel("drive_gear");
 			StateMachine.start("pause_gear");
 		}
@@ -477,7 +488,8 @@ public class Robot extends IterativeRobot {
 	////////////////////////// miscellaneous stuff
 	
 	public void testPeriodic() {
-		
+		vision_r();
+		vision_f();
 	}
 	
 	public void disabledPeriodic() {
@@ -535,8 +547,8 @@ public class Robot extends IterativeRobot {
 		
 		try { // put data into table (probably disable this during comp)
 			SensorPanel.report("ctl_v",ControllerPower.getInputVoltage()); // roborio voltage
-			SensorPanel.report("range_f",front_avg.getLatest()); // averaged rangefinder value
-			SensorPanel.report("range_r",rear_avg.getLatest()); // averaged rangefinder value
+			SensorPanel.report("range_f",front_avg.getAverage()); // averaged rangefinder value
+			SensorPanel.report("range_r",rear_avg.getAverage()); // averaged rangefinder value
 			SensorPanel.report("gyro_x",imu.getAngleX()); // gyroscope on IMU
 			SensorPanel.report("gyro_y",imu.getAngleY()); 
 			SensorPanel.report("gyro_z",imu.getAngleZ()); 
@@ -569,7 +581,7 @@ public class Robot extends IterativeRobot {
 		Settings.add("motormap", 1, 0, 1); // motor cubic factor
 		Settings.add("motorproportion", 0.7, 0, 1); // motor proprortional slow factor
 		Settings.add("slow", 0.7,0,1); // multiplier for when we hit the slow down button
-		Settings.add("marginoferror", 10, 0, 150); // margin of error for the MovingAverage class when we call getLatest()
+		Settings.add("marginoferror", 10, 0, 150); // margin of error for the MovingAverage class when we call getAverage()
 		Settings.add("launcherrpm", 3000, 3000, 4500); // rpm to keep the launcher at while it is shooting
 		Settings.add("launcherdeadzone", 5, 0, 30); // deadzone at which to stop atjusting the motor input (+- rpm)
 		Settings.add("launcher-p", 0.3, 0, 1); // rate at which to adjust the launcher speed (maybe switch to PID if this doesn't work)
@@ -593,8 +605,8 @@ public class Robot extends IterativeRobot {
 		// auto settings
 		Settings.add("autonspeed", 0.5, 0, 1); // speed to drive in auton
 		Settings.add("autondelay", 4, 0, 15); // delays during auton
-		Settings.add("autondist1", 60, 0, 250); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
-		Settings.add("autondist2", 100, 0, 250); // distance to drive from the lift before shooting
+		Settings.add("autondist1", 60, 0, 2500); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
+		Settings.add("autondist2", 100, 0, 2500); // distance to drive from the lift before shooting
 		Settings.add("autonangle", 60, 0, 100); // angle to turn in auto when targeting the lifts
 		Settings.add("liftdist", 20, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder) (also used when auto-targeting in teleop)
 		Settings.add("autonturnspeed", 0.4, 0, 1); // rate to turn in auto (very slow is good, but not too slow)
@@ -605,8 +617,8 @@ public class Robot extends IterativeRobot {
 		SensorPanel.add("pwr_c", "PDB Total Current", SensorPanel.Type.BAR_STAT, 0, 500, "A");
 		SensorPanel.add("pwr_t", "PDB Temperature", SensorPanel.Type.NUMBER, 0, 1, "F");
 		for (int i = 0; i < 16; i++) SensorPanel.add("pwr_c_"+i, "PDB Current CH"+i, SensorPanel.Type.BAR_STAT, 0, 15, "A");
-		SensorPanel.add("range_f", "Front Rangefinder", SensorPanel.Type.BAR, 0, 260, "cm");
-		SensorPanel.add("range_r", "Rear Rangefinder", SensorPanel.Type.BAR, 0, 260, "cm");
+		SensorPanel.add("range_f", "Front Rangefinder", SensorPanel.Type.BAR, 0, 4000, "cm");
+		SensorPanel.add("range_r", "Rear Rangefinder", SensorPanel.Type.BAR, 0, 4000, "cm");
 		SensorPanel.add("gyro_x", "Gyroscope X", SensorPanel.Type.NUMBER, 0, 1, "deg");
 		SensorPanel.add("gyro_y", "Gyroscope Y", SensorPanel.Type.NUMBER, 0, 1, "deg");
 		SensorPanel.add("gyro_z", "Gyroscope Z", SensorPanel.Type.NUMBER, 0, 1, "deg");
@@ -619,13 +631,13 @@ public class Robot extends IterativeRobot {
 		SensorPanel.add("cradle_p", "Cradle Proximity", SensorPanel.Type.BAR, 0, 4096, "");
 		SensorPanel.add("enc_r", "Launcher encoder", SensorPanel.Type.NUMBER, 0, 1, "rpm");
 		SensorPanel.add("vis_bd", "Boiler Distance", SensorPanel.Type.BAR, 0, 400, "in");
-		SensorPanel.add("vis_ba", "Boiler Angle", SensorPanel.Type.BAR, 0, 400, "in");
-		SensorPanel.add("vis_ld", "Lift Distance", SensorPanel.Type.CENTER, -90, 90, "deg");
+		SensorPanel.add("vis_ba", "Boiler Angle", SensorPanel.Type.CENTER, 0, 400, "in");
+		SensorPanel.add("vis_ld", "Lift Distance", SensorPanel.Type.BAR, -90, 90, "deg");
 		SensorPanel.add("vis_la", "List Angle", SensorPanel.Type.CENTER, -90, 90, "deg");
 		//SensorPanel.add("", "", SensorPanel.Type.BAR, 0, 1, "");
 		
 		// lay out the auton state machines (stages)
-		StateMachine.add("initial_delay", 0.5); // start out by pausing for a moment
+		StateMachine.add("initial_delay", 0.1); // start out by pausing for a moment
 		StateMachine.add("drive_back_1"); // back up (gear on back) specified distance
 		StateMachine.add("turn"); // rotate to face the peg if needed
 		StateMachine.add("drive_back_2"); // drive again up to the peg (with vision)

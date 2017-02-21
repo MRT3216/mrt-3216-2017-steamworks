@@ -155,10 +155,10 @@ public class StateMachine {
 	}
 	
 	private void _start() {
+		this.running = true;
 		if (!this.manual) { // start timer if timed
 			this.timer.stop();
 			this.timer.reset();
-			this.running = true;
 			this.triggered = false;
 			this.timer.start();
 		}
