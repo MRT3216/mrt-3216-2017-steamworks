@@ -118,6 +118,7 @@ public class Robot extends IterativeRobot {
 
 	// This function is called periodically during autonomous
 	public void autonomousPeriodic() {
+		//Necessary Comment. Auton breaks without this comment :)
 		// first, we check the different triggers to advance the auton routine
 		if (StateMachine.check("initial_delay")) { // once finished sleeping
 			StateMachine.cancel("initial_delay");
