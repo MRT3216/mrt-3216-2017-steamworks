@@ -525,10 +525,11 @@ public class Robot extends IterativeRobot {
 				byte mode1 = 0;  //////// structure: 0b<red><blue><fms><auton><teleop><disabled><enabled><attached>
 				if (ds.getAlliance() == DriverStation.Alliance.Red)  mode1 |= 0b10000000; // on the red alliance
 				if (ds.getAlliance() == DriverStation.Alliance.Blue) mode1 |= 0b01000000; // blue alliance 
-				if (ds.isAutonomous())                               mode1 |= 0b00100000; // auton mode
-				if (ds.isOperatorControl())                          mode1 |= 0b00010000; // teleop mode
+				if (ds.isAutonomous() && ds.isEnabled())             mode1 |= 0b00100000; // auton mode
+				if (ds.isOperatorControl() && ds.isEnabled())        mode1 |= 0b00010000; // teleop mode
 				if (front_vision + 0.5 > matchTimer.get())           mode1 |= 0b00001000; // enable front vision leds
 				if (rear_vision + 0.5 > matchTimer.get())            mode1 |= 0b00000100; // enable rear vision leds
+				if (ds.isDisabled())                                 mode1 |= 0b00000010;
 
 				byte[] mode2 = {mode1};
 				arduino.write(mode2,1); // send the byte of status over

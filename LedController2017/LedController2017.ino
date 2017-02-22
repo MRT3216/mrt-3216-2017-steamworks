@@ -1,4 +1,5 @@
-//#define RAINBOW
+//#define RAINBOW_RING
+#define RAINBOW
 
 #include <Adafruit_NeoPixel.h>
 
@@ -6,8 +7,8 @@
 #define REAR_RING_PIN  7
 #define NUMPIXELS_RING  16
 
-#define LIGHT_PIN 6
-#define NUMPIXELS_STRIPS 64
+#define LIGHT_PIN 5
+#define NUMPIXELS_STRIPS 27
 
 #define RINGFADE 35
 
@@ -44,7 +45,7 @@ void loop() {
     teleop = c & 0b00010000;
     red = c & 0b10000000;
     blue = c & 0b01000000;
-    enabled = auton || teleop;
+    enabled = c & 0b00000010;
     digitalWrite(13,HIGH);
   }
   if (lastread < millis() - 1000) { // lost comms
@@ -91,7 +92,7 @@ void loop() {
       strippixels.setPixelColor(i,color);
     }
     #else
-    fade_s(3);
+    fade_s(6);
     add++;
       if (add > 2) {
         add = 0;
@@ -105,7 +106,7 @@ void loop() {
       frontpixels.setPixelColor(i,frontpixels.Color(0,255,0));
     }
   } else {
-    #ifdef RAINBOW
+    #ifdef RAINBOW_RING
     for (byte i = 0; i < NUMPIXELS_RING; i++) {
       uint32_t color = wheel(((i * 255 / NUMPIXELS_RING) + rainbow) & 255);
       frontpixels.setPixelColor(i,color);
@@ -121,7 +122,7 @@ void loop() {
       rearpixels.setPixelColor(i,rearpixels.Color(0,255,0));
     }
   } else {
-    #ifdef RAINBOW
+    #ifdef RAINBOW_RING
     for (byte i = 0; i < NUMPIXELS_RING; i++) {
       uint32_t color = wheel(((i * 255 / NUMPIXELS_RING) + rainbow) & 255);
       rearpixels.setPixelColor(i,color);
