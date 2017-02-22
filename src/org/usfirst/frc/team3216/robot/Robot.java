@@ -208,7 +208,7 @@ public class Robot extends IterativeRobot {
 		leftdrive_in = xBox.getRawAxis(5); // these are supposed to be the vertical axes (for tank drive)
 		rightdrive_in = xBox.getRawAxis(1); // checked
 		
-		runintake_in = xBox.getRawButton(2); // Left Trigger / blue
+		runintake_in = xBox.getRawAxis(2) > 0.5; // LeftBumper / blue
 		runshooter_in = xBox.getRawButton(5); // B / red
 		rungear_in = xBox.getRawButton(4); // Y / yellow
 		reverse_in = xBox.getRawButton(2); // left bumper (toggle)
