@@ -205,8 +205,14 @@ public class Robot extends IterativeRobot {
 	boolean buttons_connected = false; // not used but possibly will be
 	// This function is called periodically during operator control
 	public void teleopPeriodic() {
+		/*
 		leftdrive_in = xBox.getRawAxis(5); // these are supposed to be the vertical axes (for tank drive)
 		rightdrive_in = xBox.getRawAxis(1); // checked
+		*/
+		
+		
+		leftdrive_in = -xBox.getRawAxis(5);//Temporarily reversing these for testing with SixChainz, uncomment above code for competition.
+		rightdrive_in = -xBox.getRawAxis(1);
 		
 		runintake_in = xBox.getRawAxis(2) > 0.5; // LeftBumper / blue
 		runshooter_in = xBox.getRawButton(5); // B / red
