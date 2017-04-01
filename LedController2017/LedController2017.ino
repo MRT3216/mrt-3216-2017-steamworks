@@ -1,6 +1,8 @@
 //#define RAINBOW_RING
 #define RAINBOW
 
+#define GREENBRIGHTNESS 128
+
 #include <Adafruit_NeoPixel.h>
 
 #define FRONT_RING_PIN  8
@@ -103,7 +105,7 @@ void loop() {
 
   if (front_leds) {
     for (byte i = 0; i < NUMPIXELS_RING; i++) {
-      frontpixels.setPixelColor(i,frontpixels.Color(0,255,0));
+      frontpixels.setPixelColor(i,frontpixels.Color(0,GREENBRIGHTNESS,0));
     }
   } else {
     #ifdef RAINBOW_RING

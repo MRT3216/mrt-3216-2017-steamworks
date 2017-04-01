@@ -448,7 +448,7 @@ public class Robot extends IterativeRobot {
 			turn_speed = -Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
 		}
 		
-		drive_speed = Utility.map(Math.abs(lift_distance),0,Settings.get("maxgeardist"),0.1,Settings.get("autodrivespd"));
+		drive_speed = Utility.map(Utility.constrain(Math.abs(lift_distance),0,Settings.get("maxgeardist")),0,Settings.get("maxgeardist"),0.1,Settings.get("autodrivespd"));
 		
 		drive(-drive_speed-turn_speed, -drive_speed+turn_speed); // TODO: switch if backwards
 	}
@@ -610,8 +610,8 @@ public class Robot extends IterativeRobot {
 		SensorPanel.add("cradle_p", "Cradle Proximity", SensorPanel.Type.BAR, 0, 4096, "");
 		SensorPanel.add("enc_r", "Launcher encoder", SensorPanel.Type.NUMBER, 0, 1, "rpm");
 		SensorPanel.add("vis_bd", "Boiler Distance", SensorPanel.Type.BAR, 0, 400, "in");
-		SensorPanel.add("vis_ba", "Boiler Angle", SensorPanel.Type.CENTER, 0, 400, "in");
-		SensorPanel.add("vis_ld", "Lift Distance", SensorPanel.Type.BAR, -90, 90, "deg");
+		SensorPanel.add("vis_ba", "Boiler Angle", SensorPanel.Type.CENTER, -90, 90, "deg");
+		SensorPanel.add("vis_ld", "Lift Distance", SensorPanel.Type.BAR, 0, 40090, "in");
 		SensorPanel.add("vis_la", "List Angle", SensorPanel.Type.CENTER, -90, 90, "deg");
 		//SensorPanel.add("", "", SensorPanel.Type.BAR, 0, 1, "");
 		
