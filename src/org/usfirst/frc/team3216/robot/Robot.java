@@ -165,13 +165,13 @@ public class Robot extends IterativeRobot {
 		}
 		
 		if (StateMachine.isRunning("drive_back_1")) { // drive backward
-			drive(Settings.get("autonspeed"),Settings.get("autonspeed")); // TODO: switch if backwards
+			drive(-Settings.get("autonspeed"),-Settings.get("autonspeed")); // TODO: switch if backwards
 			System.out.println("drive back 1");
 		} else if (StateMachine.isRunning("turn")) { // turn toward the lift
 			if (auto_station == Station.LEFT) { // turn to the right
-				drive(Settings.get("autonturnspeed"),-Settings.get("autonturnspeed")); // TODO: switch if backwards
-			} else if (auto_station == Station.RIGHT) { // turn to the left
 				drive(-Settings.get("autonturnspeed"),Settings.get("autonturnspeed")); // TODO: switch if backwards
+			} else if (auto_station == Station.RIGHT) { // turn to the left
+				drive(Settings.get("autonturnspeed"),-Settings.get("autonturnspeed")); // TODO: switch if backwards
 			}
 			System.out.println("turning");
 		} else if (StateMachine.isRunning("drive_back_2")) { // drive back, targeting the lift with vision
@@ -348,34 +348,6 @@ public class Robot extends IterativeRobot {
 			balllauncher.set(-launcherspeed); // set the new value
 			
 			agitator.set(Settings.get("agitatorspeed"));
-			
-			/*if (!StateMachine.isGroupRunning("indexer")) {
-				StateMachine.start("indexer_off");
-				indexerTimer.reset();
-				indexerTimer.start();
-			}
-			
-			if (StateMachine.isRunning("indexer_off") && indexerTimer.get() > Settings.get("indexerofftime")) {
-				StateMachine.cancel("indexer_off");
-				StateMachine.start("indexer_on");
-				indexerTimer.reset();
-				indexerTimer.start();
-			}
-			if (StateMachine.isRunning("indexer_on") && indexerTimer.get() > Settings.get("indexerontime")) {
-				StateMachine.cancel("indexer_on");
-				StateMachine.start("indexer_off");
-				indexerTimer.reset();
-				indexerTimer.start();
-			}
-			
-			if (StateMachine.isRunning("indexer_off")) {
-				indexer.set(0);
-			}
-			if (StateMachine.isRunning("indexer_on")) {
-				indexer.set(Settings.get("indexerspeed"));
-			}*/
-			
-			//indexer.set(-Settings.get("indexerspeed"));
 		} else {
 			balllauncher.set(0); // else, stop the motor
 			indexer.set(0);
