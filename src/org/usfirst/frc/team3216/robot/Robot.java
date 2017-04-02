@@ -179,6 +179,7 @@ public class Robot extends IterativeRobot {
 			System.out.println("drive back 2");
 		} else if (StateMachine.isRunning("wait_gear")) { // wait for the gear to be lifted
 			placeGear(false);
+			drive(0,0);
 			System.out.println("wait for gear");
 			// probably don't need to do anything here
 		} else if (StateMachine.isRunning("drive_fwd_3")) { // drive forward
@@ -426,29 +427,31 @@ public class Robot extends IterativeRobot {
 	void aimGear() { // rotate the robot based on vision input
 		vision_r();
 		
-		double turn_speed = 0;
+		turn_speed = 0;
 		
 		if (lift_angle > Settings.get("visiondeadzone")) {
-			turn_speed = Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
+			turn_speed = Settings.get("turnbase") + Utility.map(Math.abs(lift_angle),0,10,0.05,Settings.get("gearaim-p"));
 		} else if (lift_angle < -Settings.get("visiondeadzone")) {
-			turn_speed = -Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
+			turn_speed = -Settings.get("turnbase") - Utility.map(Math.abs(lift_angle),0,10,0.05,Settings.get("gearaim-p"));
 		}
-		
+
 		drive(-turn_speed, turn_speed); // TODO: switch if backwards
 	}
+	
+	double turn_speed = 0, drive_speed = 0;
 	
 	void driveGear() { // drive forward slowly while aiming
 		vision_r();
 		
-		double turn_speed = 0, drive_speed = 0;
+		turn_speed = 0;
 		
 		if (lift_angle > Settings.get("visiondeadzone")) {
-			turn_speed = Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
+			turn_speed = Utility.map(Math.abs(lift_angle),0,10,0.05,Settings.get("gearaim-p"));
 		} else if (lift_angle < -Settings.get("visiondeadzone")) {
-			turn_speed = -Utility.map(Math.abs(lift_angle),0,60,0.05,Settings.get("gearaim-p"));
+			turn_speed = -Utility.map(Math.abs(lift_angle),0,10,0.05,Settings.get("gearaim-p"));
 		}
 		
-		drive_speed = Utility.map(Utility.constrain(Math.abs(lift_distance),0,Settings.get("maxgeardist")),0,Settings.get("maxgeardist"),0.1,Settings.get("autodrivespd"));
+		drive_speed = Utility.map(Utility.constrain(Math.abs(rear_avg.getAverage()),0,Settings.get("maxgeardist")),0,Settings.get("maxgeardist"),0.1,Settings.get("autodrivespd"));
 		
 		drive(-drive_speed-turn_speed, -drive_speed+turn_speed); // TODO: switch if backwards
 	}
@@ -543,6 +546,8 @@ public class Robot extends IterativeRobot {
 			SensorPanel.report("vis_ba",boiler_angle);
 			SensorPanel.report("vis_ld",lift_distance);
 			SensorPanel.report("vis_la",lift_angle);
+			SensorPanel.report("gear_t",turn_speed);
+			SensorPanel.report("gear_d",drive_speed);
 			// do these last so if they fail, the rest still runs
 			SensorPanel.report("pwr_c",pdp.getTotalCurrent()); // total current draw
 			SensorPanel.report("pwr_v",pdp.getVoltage()); // PDP voltage (not the same as DS voltage)
@@ -587,8 +592,9 @@ public class Robot extends IterativeRobot {
 		Settings.add("autondist1", 60, 0, 2500); // distance to drive in auto before turning (front rangefinder because the gear is on the back)
 		Settings.add("autondist2", 100, 0, 2500); // distance to drive from the lift before shooting
 		Settings.add("autonangle", 60, 0, 100); // angle to turn in auto when targeting the lifts
-		Settings.add("liftdist", 20, 0, 250); // distance to get from the lift when placing a gear (rear rangefinder) (also used when auto-targeting in teleop)
+		Settings.add("liftdist", 20, 0, 500); // distance to get from the lift when placing a gear (rear rangefinder) (also used when auto-targeting in teleop)
 		Settings.add("autonturnspeed", 0.4, 0, 1); // rate to turn in auto (very slow is good, but not too slow)
+		Settings.add("turnbase", 0.1, 0, 1); // 
 		
 		// set up the sensors!
 		SensorPanel.add("pwr_v", "PDB Voltage", SensorPanel.Type.BAR_STAT, 0, 15, "V");
@@ -613,6 +619,8 @@ public class Robot extends IterativeRobot {
 		SensorPanel.add("vis_ba", "Boiler Angle", SensorPanel.Type.CENTER, -90, 90, "deg");
 		SensorPanel.add("vis_ld", "Lift Distance", SensorPanel.Type.BAR, 0, 40090, "in");
 		SensorPanel.add("vis_la", "List Angle", SensorPanel.Type.CENTER, -90, 90, "deg");
+		SensorPanel.add("gear_t", "Gear Turn Speed", SensorPanel.Type.BAR, 0, 1, "%");
+		SensorPanel.add("gear_d", "Gear Drive Speed", SensorPanel.Type.BAR, 0, 1, "%");
 		//SensorPanel.add("", "", SensorPanel.Type.BAR, 0, 1, "");
 		
 		// lay out the auton state machines (stages)
