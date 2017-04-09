@@ -57,7 +57,7 @@ public class Robot extends IterativeRobot {
 		indexer = new Talon(5);
 		
 		// sensors
-		range_front = new AnalogInput(0); // analog rangefinder on the front
+		range_front = new AnalogInput(3); // analog rangefinder on the front
 		range_rear = new AnalogInput(1); // analog rangefinder on the front
 		cradle_prox = new AnalogInput(2); // IR proximity sensor
 		
@@ -266,8 +266,8 @@ public class Robot extends IterativeRobot {
 		
 		intake(runintake_in); // run the intake motor if button is pressed
 		
-		if (climb_in) indexer.set(-1); // temporarily using indexer to run climber
-		if (revclimb_in) indexer.set(1);
+		if (climb_in) indexer.set(-0.4); // temporarily using indexer to run climber
+		if (revclimb_in) indexer.set(-1);
 	}
 	
 	/* the following useful functions:
@@ -285,13 +285,21 @@ public class Robot extends IterativeRobot {
 		right = -right;
 		
 		if (Math.abs(left) > Settings.get("deadzone")) { // deadzone the motors
-			leftdrive.set((Math.pow(left,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * left) * (multiplier + Settings.get("motordisparity"))); // cubic motor map
+			if (left > 0) {
+				leftdrive.set((Math.pow(left,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * left) * (multiplier + Settings.get("motordisparity"))); // cubic motor map
+			} else {
+				leftdrive.set((Math.pow(left,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * left) * (multiplier - Settings.get("motordisparity"))); // cubic motor map
+			}
 		} else {
 			leftdrive.set(0); // else stop it
 		}
 		
 		if (Math.abs(right) > Settings.get("deadzone")) { // deadzone
-			rightdrive.set((Math.pow(right,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * right) * (multiplier - Settings.get("motordisparity")));
+			if (right > 0) {
+				rightdrive.set((Math.pow(right,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * right) * (multiplier - Settings.get("motordisparity")));
+			} else {
+				rightdrive.set((Math.pow(right,3) * Settings.get("motormap") + (1 - Settings.get("motormap")) * right) * (multiplier + Settings.get("motordisparity")));
+			}
 		} else {
 			rightdrive.set(0); // else stop it
 		}
@@ -313,16 +321,19 @@ public class Robot extends IterativeRobot {
 			StateMachine.cancel("aim_boiler");
 			StateMachine.start("drive_boiler");
 		} else if (StateMachine.isRunning("drive_boiler") && 
-				(true /* check the distance */)) {
+				(rear_avg.getAverage() < Settings.get("liftdist"))) {
 			StateMachine.cancel("drive_boiler");
 			StateMachine.start("shoot_boiler");
 		}
 		
 		if (StateMachine.isRunning("aim_boiler")) {
 			aimLauncher();
+			runLauncher(false);
 		} else if (StateMachine.isRunning("drive_boiler")) {
 			driveLauncher();
+			runLauncher(false);
 		} else if (StateMachine.isRunning("shoot_boiler")) {
+			drive(0,0);
 			runLauncher(true);
 		}
 	}
@@ -428,7 +439,7 @@ public class Robot extends IterativeRobot {
 			turn_speed = -Settings.get("turnbase") - Utility.map(Math.abs(lift_angle),0,10,0.05,Settings.get("gearaim-p"));
 		}
 
-		drive(turn_speed, -turn_speed); // TODO: switch if backwards
+		drive(-turn_speed, turn_speed); // TODO: switch if backwards
 	}
 	
 	double turn_speed = 0, drive_speed = 0; // global so we can read it in the syncSensors() method
@@ -438,15 +449,15 @@ public class Robot extends IterativeRobot {
 		
 		turn_speed = 0;
 		
-		if (lift_angle > Settings.get("visiondeadzone")) { 
+		if (lift_angle > 0) { 
 			turn_speed = Utility.map(Math.abs(lift_angle),0,10,0.05,Settings.get("gearaim-p")); // turn speed based on angle to the target
-		} else if (lift_angle < -Settings.get("visiondeadzone")) {
+		} else if (lift_angle < 0) {
 			turn_speed = -Utility.map(Math.abs(lift_angle),0,10,0.05,Settings.get("gearaim-p")); // turn speed based on angle to the target
 		}
 		
 		drive_speed = Utility.map(Utility.constrain(Math.abs(rear_avg.getAverage()),0,Settings.get("maxgeardist")),0,Settings.get("maxgeardist"),0.1,Settings.get("autodrivespd")); // drive speed based on our distance
 		
-		drive(drive_speed+turn_speed, drive_speed-turn_speed); // TODO: switch if backwards
+		drive(drive_speed-turn_speed, drive_speed+turn_speed); // TODO: switch if backwards
 	}
 	
 	
@@ -488,6 +499,7 @@ public class Robot extends IterativeRobot {
 	
 	void vision_r() { // set a timer to turn on the vision lights
 		rear_vision = matchTimer.get(); // sets to matchtimer so we know when it was last called
+		lift_angle = lifttracker.getNumber("angleFromGoal",0);
 	}
 	void vision_f() {
 		front_vision = matchTimer.get();
